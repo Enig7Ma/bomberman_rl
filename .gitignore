@@ -111,3 +111,6 @@ screenshots/*.webm
 
 replays/
 results/
+
+dev/
+CLAUDE.md
