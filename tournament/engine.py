@@ -16,7 +16,7 @@ clears them again.
 
 import logging
 import os
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,6 +25,7 @@ import environment
 import settings
 from environment import BombeRLeWorld, WorldArgs
 from tournament.framework import AgentView, agents_of
+from tournament.latency import LatencyRecord, instrument_world
 from tournament.results import AgentRoundResult, RoundResult
 
 REPO_ROOT = Path(environment.__file__).resolve().parent
@@ -125,7 +126,9 @@ def create_world(config: WorldConfig, log_dir: str = DEFAULT_LOG_DIR) -> BombeRL
     return BombeRLeWorld(_world_args(config, log_dir), agents)
 
 
-def _agent_result(seat: int, agent: AgentView) -> AgentRoundResult:
+def _agent_result(
+    seat: int, agent: AgentView, latency: LatencyRecord
+) -> AgentRoundResult:
     # ``statistics``, ``score`` and ``dead`` are None until the agent's first
     # round starts, so a None here means the round was never played.
     stats = agent.statistics
@@ -145,10 +148,18 @@ def _agent_result(seat: int, agent: AgentView) -> AgentRoundResult:
         moves=stats["moves"],
         steps=stats["steps"],
         survived=not agent.dead,
+        latency_mean=latency.mean,
+        latency_p99=latency.percentile(99.0),
+        latency_max=latency.maximum,
+        timeouts=latency.timeouts,
     )
 
 
-def collect_result(world: BombeRLeWorld, config: WorldConfig) -> RoundResult:
+def collect_result(
+    world: BombeRLeWorld,
+    config: WorldConfig,
+    latencies: Sequence[LatencyRecord],
+) -> RoundResult:
     """Read the finished round off the world's agent objects."""
     return RoundResult(
         scenario=config.scenario,
@@ -158,7 +169,10 @@ def collect_result(world: BombeRLeWorld, config: WorldConfig) -> RoundResult:
         focus_seat=config.focus_seat,
         steps=world.step,
         agents=tuple(
-            _agent_result(seat, agent) for seat, agent in enumerate(agents_of(world))
+            _agent_result(seat, agent, latency)
+            for seat, (agent, latency) in enumerate(
+                zip(agents_of(world), latencies, strict=True)
+            )
         ),
     )
 
@@ -167,9 +181,10 @@ def run_round(config: WorldConfig, log_dir: str = DEFAULT_LOG_DIR) -> RoundResul
     """Play one round to completion and return its result."""
     world = create_world(config, log_dir)
     try:
+        latencies = instrument_world(world)
         world.new_round()
         while world.running:
             world.do_step()
-        return collect_result(world, config)
+        return collect_result(world, config, latencies)
     finally:
         reset_framework_logging()

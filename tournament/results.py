@@ -25,6 +25,10 @@ class AgentRoundResult:
     moves: int
     steps: int
     survived: bool
+    latency_mean: float
+    latency_p99: float
+    latency_max: float
+    timeouts: int
 
 
 @dataclass(frozen=True)
@@ -41,5 +45,12 @@ class RoundResult:
 
     @property
     def focus(self) -> AgentRoundResult:
-        """The agent this round was scheduled to measure."""
-        return self.agents[self.focus_seat]
+        """The agent this round was scheduled to measure.
+
+        Looked up by ``seat`` rather than by position, so the record stays
+        correct if results are ever stored in a different order.
+        """
+        for agent in self.agents:
+            if agent.seat == self.focus_seat:
+                return agent
+        raise ValueError(f"no agent in seat {self.focus_seat} of {self.lineup}")

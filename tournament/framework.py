@@ -10,12 +10,23 @@ Nothing else in ``tournament/`` should reach into framework internals directly.
 """
 
 from collections import defaultdict
+from collections.abc import Callable
 from typing import Protocol, cast
 
 from environment import BombeRLeWorld
 
 
-class AgentView(Protocol):
+class TimedAgent(Protocol):
+    """The little of an agent that latency recording needs."""
+
+    available_think_time: float | None
+
+    # Declared as an attribute rather than a method so the latency
+    # instrumentation can replace it per instance.
+    wait_for_act: Callable[[], tuple[str, float]]
+
+
+class AgentView(TimedAgent, Protocol):
     """The subset of ``agents.Agent`` the tournament reads.
 
     ``score``, ``dead`` and ``statistics`` are None until the agent's first
@@ -29,8 +40,6 @@ class AgentView(Protocol):
     score: int | None
     dead: bool | None
     statistics: defaultdict[str, int] | None
-
-    def wait_for_act(self) -> tuple[str, float]: ...
 
 
 def agents_of(world: BombeRLeWorld) -> list[AgentView]:
