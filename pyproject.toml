@@ -13,3 +13,74 @@ dependencies = [
 torch = [
     "torch>=2.14.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ipython>=9.17.1",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.16.7",
+]
+
+# Files that predate the code-check setup are grandfathered in and excluded
+# below (both [tool.ruff] and [tool.pyright]). Do not add new files to these
+# lists - all new code must pass lint, format, type-annotation, and type checks.
+[tool.ruff]
+force-exclude = true
+extend-exclude = [
+    "agents.py",
+    "environment.py",
+    "events.py",
+    "fallbacks.py",
+    "items.py",
+    "main.py",
+    "replay.py",
+    "settings.py",
+    "test.py",
+    "agent_code/coin_collector_agent/callbacks.py",
+    "agent_code/fail_agent/callbacks.py",
+    "agent_code/peaceful_agent/callbacks.py",
+    "agent_code/random_agent/callbacks.py",
+    "agent_code/rule_based_agent/callbacks.py",
+    "agent_code/tpl_agent/callbacks.py",
+    "agent_code/tpl_agent/train.py",
+    "agent_code/user_agent/callbacks.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # pyflakes
+    "I",    # isort
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "ANN",  # flake8-annotations (forces type annotations)
+]
+
+[tool.pyright]
+exclude = [
+    "**/__pycache__",
+    ".venv",
+    "agents.py",
+    "environment.py",
+    "events.py",
+    "fallbacks.py",
+    "items.py",
+    "main.py",
+    "replay.py",
+    "settings.py",
+    "test.py",
+    "agent_code/coin_collector_agent/callbacks.py",
+    "agent_code/fail_agent/callbacks.py",
+    "agent_code/peaceful_agent/callbacks.py",
+    "agent_code/random_agent/callbacks.py",
+    "agent_code/rule_based_agent/callbacks.py",
+    "agent_code/tpl_agent/callbacks.py",
+    "agent_code/tpl_agent/train.py",
+    "agent_code/user_agent/callbacks.py",
+]
+typeCheckingMode = "strict"
+
+[tool.pytest.ini_options]
+testpaths = ["."]
+python_files = ["test.py", "test_*.py", "*_test.py"]
