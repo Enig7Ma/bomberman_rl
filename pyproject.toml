@@ -83,4 +83,6 @@ typeCheckingMode = "strict"
 
 [tool.pytest.ini_options]
 testpaths = ["."]
+# Make repo-root modules (settings, environment, ...) importable from tests/.
+pythonpath = ["."]
 python_files = ["test.py", "test_*.py", "*_test.py"]
