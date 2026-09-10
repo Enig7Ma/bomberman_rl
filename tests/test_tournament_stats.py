@@ -241,3 +241,15 @@ def test_power_matches_the_measured_baseline() -> None:
 def test_power_rejects_nonsense() -> None:
     with pytest.raises(ValueError, match="must both be positive"):
         rounds_for_detectable_difference(0.0, 1.0)
+
+
+def test_summary_reports_mean_round_length() -> None:
+    """Round length is the only metric left where a task saturates on score."""
+    results = [
+        replace(make_round([1], seed=0), steps=100),
+        replace(make_round([1], seed=1), steps=300),
+    ]
+
+    summary = summarise_arm(results, CANDIDATE_ARM, resamples=100)
+
+    assert summary.round_steps == pytest.approx(200.0)

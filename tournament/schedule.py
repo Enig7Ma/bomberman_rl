@@ -10,12 +10,16 @@ comparison rather than averaging over it.
 **Paired controls.** For a candidate lineup, the same schedule is also emitted
 with the incumbent in the candidate's seat, on the same seeds. Because the
 arena and seating are a function of the seed alone (see ``engine``), the
-candidate and its control face the same board from the same corner, and the
-per-seed difference cancels the layout variance that dominates raw scores.
+candidate and its control face the same board from the same corner.
 
-What pairing does *not* remove is opponent behaviour: ``rule_based_agent``
-seeds itself from entropy and uses the global RNG, so the opponents' dice
-differ between the two arms. Repetition, not seeding, handles that.
+Measured, that buys very little. Over 400 mirror pairs of ``rule_based_agent``
+the candidate and control scores on the same board correlate at only 0.07, so
+the paired difference has an sd of 3.70 against 3.82 unpaired -- about 3%.
+Layout is *not* what dominates score variance here; opponent behaviour and the
+agents' own randomness are, and seeding cannot touch those
+(``rule_based_agent`` seeds itself from entropy). Pairing is kept because it is
+free and guarantees both arms see the same seed set, but budget sample sizes as
+if the comparison were unpaired.
 """
 
 from collections.abc import Sequence

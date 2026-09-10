@@ -191,3 +191,10 @@ def test_report_warns_when_latency_approaches_the_budget() -> None:
 def test_unknown_preset_is_rejected() -> None:
     with pytest.raises(SystemExit):
         main(["run", "--candidate", "x", "--preset", "nope", "--out", "x.jsonl"])
+
+
+def test_report_shows_round_length() -> None:
+    rendered = render([replace(make_round([1], seed=0), steps=124)], budget=0.5)
+
+    assert "round len" in rendered
+    assert "| 124 |" in rendered

@@ -1,11 +1,12 @@
 """Turning round records into comparisons with stated uncertainty.
 
-Scores in this game are heavy-tailed and layout-dominated: the measured spread
-of ``rule_based_agent`` is a standard deviation of ~2.9 around a mean of ~3.3,
-so a point estimate from a handful of rounds says almost nothing. Every number
-this module reports therefore comes with an interval, and the headline
-comparison is a *paired* difference on shared seeds rather than a difference of
-two independently sampled means.
+Scores in this game are noisy: the measured spread of ``rule_based_agent`` is
+a standard deviation of ~2.8 around a mean of ~3.3, so a point estimate from a
+handful of rounds says almost nothing. Every number this module reports
+therefore comes with an interval. The headline comparison is a difference
+paired on shared seeds, though pairing turns out to remove only ~3% of the
+variance (see ``schedule``) -- it is a guard against unbalanced seed sets, not
+a variance-reduction device.
 
 The intervals are percentile bootstrap intervals over rounds. That treats
 rounds as the sampling unit, which is right for comparing two fixed policies.
@@ -141,6 +142,7 @@ class ArmSummary:
     arm: str
     code_name: str
     rounds: int
+    round_steps: float
     score: Estimate
     coins: float
     kills: float
@@ -190,6 +192,7 @@ def summarise_arm(
         arm=arm,
         code_name=names.pop(),
         rounds=len(rounds),
+        round_steps=_mean(float(result.steps) for result in rounds),
         score=estimate([float(agent.score) for agent in focus], resamples=resamples),
         coins=_mean(float(agent.coins) for agent in focus),
         kills=_mean(float(agent.kills) for agent in focus),
@@ -283,8 +286,9 @@ def rounds_for_detectable_difference(sd: float, difference: float) -> int:
     """Rounds per arm needed to resolve ``difference`` at 95% confidence.
 
     The usual two-sample normal approximation, ``n = 2 (1.96 sd / d)^2``. It is
-    a planning aid, not a guarantee: it ignores the pairing that shrinks the
-    real requirement and the non-normality that inflates it.
+    a planning aid, not a guarantee: it ignores non-normality, and it ignores
+    pairing -- which is safe here, since pairing was measured to shrink the
+    requirement by only ~7% (see ``schedule``).
     """
     if sd <= 0.0 or difference <= 0.0:
         raise ValueError("sd and difference must both be positive")
