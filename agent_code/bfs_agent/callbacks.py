@@ -38,6 +38,7 @@ class AgentSelf(Protocol):
     geometry: Geometry | None
     distances: DistanceCache
     route: CoinRoute
+    round: int
 
 
 def setup(self: AgentSelf) -> None:
@@ -47,6 +48,13 @@ def setup(self: AgentSelf) -> None:
     self.rng = random.Random(self.params.seed)
     self.geometry = None
     self.distances = DistanceCache()
+    _start_round(self, 0)
+
+
+def _start_round(self: AgentSelf, number: int) -> None:
+    # The stock framework calls ``setup`` once and reuses the agent for every
+    # round, so per-round state must be reset here.
+    self.round = number
     self.route = CoinRoute()
 
 
@@ -58,6 +66,8 @@ def _geometry(self: AgentSelf, obs: Observation) -> Geometry:
 
 def act(self: AgentSelf, game_state: dict[str, Any]) -> str:
     obs = Observation.from_game_state(game_state)
+    if obs.round != self.round:
+        _start_round(self, obs.round)
     geometry = _geometry(self, obs)
     board = Board(obs, geometry)
     timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)

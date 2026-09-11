@@ -90,3 +90,18 @@ def test_act_returns_a_legal_action(me: tuple[int, int]) -> None:
         action = callbacks.act(agent, state)
         assert action in ACTIONS
         assert action in legal
+
+
+def test_a_new_round_resets_the_route() -> None:
+    """The stock framework reuses one agent for every round."""
+    agent = make_self()
+    callbacks.act(agent, game_state(arena(), (1, 1), coins=[(4, 1)], round_number=1))
+    first = agent.route
+    assert first.target == (4, 1)
+
+    callbacks.act(agent, game_state(arena(), (1, 1), coins=[(4, 1)], round_number=1))
+    assert agent.route is first
+
+    callbacks.act(agent, game_state(arena(), (1, 1), coins=[(1, 4)], round_number=2))
+    assert agent.route is not first
+    assert agent.route.target == (1, 4)
