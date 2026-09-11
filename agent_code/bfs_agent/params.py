@@ -24,6 +24,11 @@ class Params:
     off_route: float = 0.5
     # Multiplier for a coin some opponent reaches strictly before we do.
     contested_coin: float = 0.5
+    # Value per crate a bomb would destroy (crates may hide coins). Measured
+    # against 3 rule_based agents: 0.05-0.15 score alike, 0.3 and up lose
+    # about a point by chasing crates over visible coins. 0.15 is the highest
+    # of the plateau, which keeps loot-crate demolition fast.
+    crate_value: float = 0.15
     # Seed for tie-breaking; None draws one from the operating system.
     seed: int | None = None
 

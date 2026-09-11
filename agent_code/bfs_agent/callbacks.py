@@ -5,8 +5,8 @@ dev/rule_based_agent.md Part 2 for the plan this implements.
 
 Each step: forecast every known hazard (``world_model``), grade each legal
 action by whether an escape survives it (``safety``), then among the safest
-actions pick the one that brings the most valuable targets closest
-(``planning``).
+actions pick the one that brings the most valuable target closest -- a coin,
+or a cell from which a bomb would destroy crates (``planning``).
 
 The framework imports this module as ``agent_code.bfs_agent.callbacks`` and
 passes a ``SimpleNamespace`` as ``self``; ``AgentSelf`` declares the attributes
@@ -18,7 +18,14 @@ import random
 from typing import Any, Protocol
 
 from .params import Params
-from .planning import CoinRoute, DistanceCache, action_values, choose, coin_targets
+from .planning import (
+    CoinRoute,
+    DistanceCache,
+    action_values,
+    bomb_spots,
+    choose,
+    coin_targets,
+)
 from .safety import Board, assess_actions, safest, threat_bombs
 from .world_model import BOMB, Geometry, Observation, danger_timeline
 
@@ -60,8 +67,12 @@ def act(self: AgentSelf, game_state: dict[str, Any]) -> str:
             f"step {obs.step}: no known escape, playing for time with"
             f" {[a.action for a in safe]}"
         )
-    actions = [a.action for a in safe if a.action != BOMB] or [a.action for a in safe]
     self.distances.sync(board)
     targets = coin_targets(obs, board, self.distances, self.params, self.route)
+    targets += bomb_spots(obs, board, self.distances, timeline, self.params)
+    actions = [a.action for a in safe]
     values = action_values(obs, actions, targets, self.distances, self.params)
+    # A bomb with nothing to gain only costs us the bomb and a blocked tile.
+    if len(values) > 1 and values.get(BOMB, 1.0) <= 0.0:
+        del values[BOMB]
     return choose(values, self.rng)

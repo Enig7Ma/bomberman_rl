@@ -2,8 +2,9 @@
 
 Every candidate action is scored by the targets it brings closer: a target of
 value ``v`` that is ``d`` steps away after the action contributes
-``v * discount ** d``, and an action is worth its best target. ``WAIT`` and
-``BOMB`` leave the agent in place, so a move towards a target beats waiting.
+``v * discount ** d``, and an action is worth its best target. ``WAIT`` leaves
+the agent in place, so a move towards a target beats waiting. Targets are
+visible coins and *bombing spots*: cells whose blast would destroy crates.
 
 Coins are visited in the order of a planned route rather than nearest-first:
 the first coin on the route gets full value and the others ``off_route`` times
@@ -24,7 +25,7 @@ from dataclasses import dataclass
 
 from .params import Params
 from .safety import Board
-from .world_model import Observation, Pos, step
+from .world_model import BOMB, BOMB_TIMER, Observation, Pos, Timeline, step
 
 # Values closer than this are ties, broken at random.
 _TIE = 1e-9
@@ -38,6 +39,8 @@ _ROUTE_PASSES = 4
 class Target:
     pos: Pos
     value: float
+    # A bombing spot: its value is only realised by dropping a bomb there.
+    bomb: bool = False
 
 
 def distances(board: Board, starts: Sequence[Pos]) -> dict[Pos, int]:
@@ -206,6 +209,57 @@ def coin_targets(
     return targets
 
 
+def can_flee(board: Board, spot: Pos) -> bool:
+    """Could whoever bombs ``spot`` get out of its blast on the current board?
+
+    Only walls, crates and bombs are considered -- no other hazards and no
+    agents. This filters out spots where bombing is never survivable (the end
+    of a short dead end); the safety layer still checks the real situation
+    before any bomb is dropped.
+    """
+    blast = board.geometry.blast(spot)
+    neighbors = board.geometry.neighbors
+    seen = {spot}
+    frontier = [spot]
+    # The bomb takes the current action; the blast lands after BOMB_TIMER moves.
+    for _ in range(BOMB_TIMER):
+        reached: list[Pos] = []
+        for cell in frontier:
+            for nxt in neighbors[cell]:
+                if nxt in seen or not board.walkable(nxt):
+                    continue
+                if nxt not in blast:
+                    return True
+                seen.add(nxt)
+                reached.append(nxt)
+        frontier = reached
+    return False
+
+
+def bomb_spots(
+    obs: Observation,
+    board: Board,
+    cache: DistanceCache,
+    timeline: Timeline,
+    params: Params,
+) -> list[Target]:
+    """Reachable cells worth bombing, valued by the crates their blast destroys.
+
+    Crates already inside a live bomb's blast are about to go anyway and do
+    not count ("no double-booking"); the timeline lists them in ``crate_open``.
+    """
+    live = board.crates.difference(timeline.crate_open)
+    if not live:
+        return []
+    blast = board.geometry.blast
+    spots: list[Target] = []
+    for cell in cache.field(obs.me.pos):
+        hits = sum(1 for hit in blast(cell) if hit in live)
+        if hits and can_flee(board, cell):
+            spots.append(Target(cell, params.crate_value * hits, bomb=True))
+    return spots
+
+
 def action_values(
     obs: Observation,
     actions: Sequence[str],
@@ -213,15 +267,30 @@ def action_values(
     cache: DistanceCache,
     params: Params,
 ) -> dict[str, float]:
-    """Discounted value of the best target from each action's resulting cell."""
+    """Discounted value of the best target from each action's resulting cell.
+
+    A coin is worth its value on arrival. A bombing spot pays only through the
+    ``BOMB`` action, which takes a step of its own: ``BOMB`` earns the spot
+    under the agent at full value, any other action earns a spot ``d`` steps
+    away at ``value * discount ** (d + 1)``.
+    """
+    me = obs.me.pos
     values: dict[str, float] = {}
     for action in actions:
-        dist = cache.field(step(obs.me.pos, action))
+        if action == BOMB:
+            values[action] = max(
+                (t.value for t in targets if t.bomb and t.pos == me), default=0.0
+            )
+            continue
+        dist = cache.field(step(me, action))
         best = 0.0
         for target in targets:
             d = dist.get(target.pos)
-            if d is not None:
-                best = max(best, target.value * params.discount**d)
+            if d is None:
+                continue
+            if target.bomb:
+                d += 1
+            best = max(best, target.value * params.discount**d)
         values[action] = best
     return values
 
