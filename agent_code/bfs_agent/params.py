@@ -29,6 +29,14 @@ class Params:
     # about a point by chasing crates over visible coins. 0.15 is the highest
     # of the plateau, which keeps loot-crate demolition fast.
     crate_value: float = 0.15
+    # Opponent pressure (``attack``). A bomb that leaves an opponent no escape
+    # is worth ``trap_value`` (a kill scores 5); one whose blast merely reaches
+    # an opponent that can still escape is worth ``pressure_value``.
+    trap_value: float = 4.0
+    pressure_value: float = 0.3
+    # Pull towards cells whose blast would cover an opponent within reach.
+    hunt_value: float = 0.2
+    hunt_radius: int = 6
     # Seed for tie-breaking; None draws one from the operating system.
     seed: int | None = None
 
