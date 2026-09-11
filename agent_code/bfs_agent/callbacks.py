@@ -3,6 +3,11 @@
 Not a course submission -- the course requires a learned model. See
 dev/rule_based_agent.md Part 2 for the plan this implements.
 
+Each step: forecast every known hazard (``world_model``), grade each legal
+action by whether an escape survives it (``safety``), then among the safest
+actions pick the one that brings the most valuable targets closest
+(``planning``).
+
 The framework imports this module as ``agent_code.bfs_agent.callbacks`` and
 passes a ``SimpleNamespace`` as ``self``; ``AgentSelf`` declares the attributes
 this agent reads and writes on it.
@@ -12,22 +17,30 @@ import logging
 import random
 from typing import Any, Protocol
 
+from .params import Params
+from .planning import CoinRoute, DistanceCache, action_values, choose, coin_targets
 from .safety import Board, assess_actions, safest, threat_bombs
-from .world_model import Geometry, Observation, danger_timeline
+from .world_model import BOMB, Geometry, Observation, danger_timeline
 
 
 class AgentSelf(Protocol):
     logger: logging.Logger
     train: bool
+    params: Params
     rng: random.Random
     geometry: Geometry | None
+    distances: DistanceCache
+    route: CoinRoute
 
 
 def setup(self: AgentSelf) -> None:
+    self.params = Params.from_env()
     # A private generator: never touch the global ``random``/NumPy state that
     # other agents in the same process share.
-    self.rng = random.Random()
+    self.rng = random.Random(self.params.seed)
     self.geometry = None
+    self.distances = DistanceCache()
+    self.route = CoinRoute()
 
 
 def _geometry(self: AgentSelf, obs: Observation) -> Geometry:
@@ -41,10 +54,14 @@ def act(self: AgentSelf, game_state: dict[str, Any]) -> str:
     geometry = _geometry(self, obs)
     board = Board(obs, geometry)
     timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)
-    choices = safest(assess_actions(obs, board, timeline, threat_bombs(obs)))
-    if choices[0].tier == 0:
+    safe = safest(assess_actions(obs, board, timeline, threat_bombs(obs)))
+    if safe[0].tier == 0:
         self.logger.info(
             f"step {obs.step}: no known escape, playing for time with"
-            f" {[a.action for a in choices]}"
+            f" {[a.action for a in safe]}"
         )
-    return self.rng.choice(choices).action
+    actions = [a.action for a in safe if a.action != BOMB] or [a.action for a in safe]
+    self.distances.sync(board)
+    targets = coin_targets(obs, board, self.distances, self.params, self.route)
+    values = action_values(obs, actions, targets, self.distances, self.params)
+    return choose(values, self.rng)
