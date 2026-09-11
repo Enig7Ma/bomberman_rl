@@ -44,7 +44,6 @@ extend-exclude = [
     "agent_code/rule_based_agent/callbacks.py",
     "agent_code/tpl_agent/callbacks.py",
     "agent_code/tpl_agent/train.py",
-    "agent_code/user_agent/callbacks.py",
 ]
 
 [tool.ruff.lint]
@@ -77,7 +76,6 @@ exclude = [
     "agent_code/rule_based_agent/callbacks.py",
     "agent_code/tpl_agent/callbacks.py",
     "agent_code/tpl_agent/train.py",
-    "agent_code/user_agent/callbacks.py",
 ]
 typeCheckingMode = "strict"
 
