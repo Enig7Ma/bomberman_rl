@@ -12,26 +12,39 @@ import logging
 import random
 from typing import Any, Protocol
 
-from .world_model import BOMB, WAIT, Observation, legal_actions, step
+from .safety import Board, assess_actions, safest, threat_bombs
+from .world_model import Geometry, Observation, danger_timeline
 
 
 class AgentSelf(Protocol):
     logger: logging.Logger
     train: bool
     rng: random.Random
+    geometry: Geometry | None
 
 
 def setup(self: AgentSelf) -> None:
     # A private generator: never touch the global ``random``/NumPy state that
     # other agents in the same process share.
     self.rng = random.Random()
+    self.geometry = None
+
+
+def _geometry(self: AgentSelf, obs: Observation) -> Geometry:
+    if self.geometry is None or not self.geometry.matches(obs.field):
+        self.geometry = Geometry(obs.field)
+    return self.geometry
 
 
 def act(self: AgentSelf, game_state: dict[str, Any]) -> str:
     obs = Observation.from_game_state(game_state)
-    candidates = [
-        action
-        for action in legal_actions(obs)
-        if action != BOMB and obs.explosion_map[step(obs.me.pos, action)] < 1
-    ]
-    return self.rng.choice(candidates) if candidates else WAIT
+    geometry = _geometry(self, obs)
+    board = Board(obs, geometry)
+    timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)
+    choices = safest(assess_actions(obs, board, timeline, threat_bombs(obs)))
+    if choices[0].tier == 0:
+        self.logger.info(
+            f"step {obs.step}: no known escape, playing for time with"
+            f" {[a.action for a in choices]}"
+        )
+    return self.rng.choice(choices).action
