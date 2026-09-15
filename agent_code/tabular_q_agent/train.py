@@ -4,35 +4,46 @@
 engine then calls ``game_events_occurred`` after every step the agent survives
 and ``end_of_round`` exactly once at the end. Neither has a time limit.
 
-The rules PDF describes these callbacks loosely; the engine (``environment.py``,
-``agents.py``) behaves as follows, and a learner must follow the engine:
+The engine's delivery differs from the rules PDF in ways that matter for
+learning (a survivor's last step arrives twice, a death step only in
+``end_of_round``, posthumous events later still); ``transitions.Trainer``
+handles all of it, and this module only forwards the callbacks, appends the
+round's record to ``TABULAR_Q_AGENT_METRICS`` and saves the table.
 
-- Both states passed to ``game_events_occurred`` carry the *same* step number
-  (the step counter is advanced before agents act). Identify a transition by
-  ``(round, old_game_state["step"])``.
-- On the final step, a *surviving* agent gets ``game_events_occurred`` for it,
-  then ``end_of_round`` with the same ``last_game_state``/``last_action`` and
-  the same events list plus ``SURVIVED_ROUND``. Do not count that step twice.
-- An agent that *died* gets no ``game_events_occurred`` for its death step;
-  that transition must be finished in ``end_of_round``. If the round goes on
-  (``--continue-without-training``), events from its bombs that explode later,
-  including ``KILLED_OPPONENT``, are appended to the same list before
-  ``end_of_round``.
-- The engine keeps mutating the ``events`` list after the call returns. Copy it
-  (``list(events)``) before storing it.
+Run standalone with the stock framework, for example::
 
-Event names are the string constants in ``events.py`` (``import events as e``).
+    TABULAR_Q_AGENT_MODEL=results/tabular_q/run/q_table.npz \\
+    TABULAR_Q_AGENT_METRICS=results/tabular_q/run/metrics.jsonl \\
+    python main.py play --no-gui --agents tabular_q_agent --train 1 \\
+        --scenario coin-heaven --n-rounds 100
+
+Without ``TABULAR_Q_AGENT_MODEL`` the table in ``model/q_table.npz`` is
+trained in place. The stock framework ends a round when the learner dies, so
+kills scored after death are lost there; ``training.world.TrainingWorld``
+keeps them.
 """
 
+from dataclasses import asdict
+
 from .callbacks import Action, AgentSelf, GameState
+from .config import metrics_path
+from .metrics import append_record
+from .rewards import Rewards
+from .transitions import Trainer
 
 
 def setup_training(self: AgentSelf) -> None:
-    """Called once, after ``callbacks.setup``, only in training mode.
-
-    Initialise what only training needs: replay buffers, optimisers, counters,
-    the pending transition. Declare those attributes on ``AgentSelf``.
-    """
+    """Called once, after ``callbacks.setup``, only in training mode."""
+    config = self.config
+    rewards = Rewards(
+        gamma=config.gamma,
+        coin_potential=config.coin_potential,
+        crate_aid=config.crate_aid,
+        death_aid=config.death_aid,
+    )
+    self.trainer = Trainer(
+        self.learner, rewards, epsilon=config.epsilon, stage=config.stage
+    )
 
 
 def game_events_occurred(
@@ -42,16 +53,11 @@ def game_events_occurred(
     new_game_state: GameState,
     events: list[str],
 ) -> None:
-    """Called after each step the agent survived, including the last one.
-
-    :param old_game_state: The state that was passed to ``act`` this step.
-    :param self_action: The action ``act`` returned. A move can still fail
-        (``INVALID_ACTION`` in ``events``) when another agent took the target
-        tile first under the random action order.
-    :param new_game_state: The state after all actions, bombs and explosions
-        of this step were resolved.
-    :param events: What happened to this agent during the step.
-    """
+    """Called after each step the agent survived, including the last one."""
+    trainer = _trainer(self)
+    trainer.events_occurred(
+        int(old_game_state["round"]), int(old_game_state["step"]), self_action, events
+    )
 
 
 def end_of_round(
@@ -60,15 +66,19 @@ def end_of_round(
     last_action: Action,
     events: list[str],
 ) -> None:
-    """Called exactly once per round, whether the agent survived or died.
+    """Called exactly once per round, whether the agent survived or died."""
+    record = _trainer(self).finish(last_action, events)
+    append_record(metrics_path(), record)
+    if record.rounds_trained % self.config.save_every == 0:
+        self.table.meta["config"] = asdict(self.config)
+        self.table.save(self.model_file)
+    self.logger.info(
+        f"round {record.round}: score {record.base_reward:g}, {record.steps} steps, "
+        f"{record.visited_states} visited states"
+    )
 
-    A good place to finish the last transition and save the model.
 
-    :param last_game_state: The state passed to ``act`` on the agent's final
-        step (the step it died in, or the round's last step).
-    :param last_action: The action returned on that step.
-    :param events: For a survivor, that final step's events plus
-        ``SURVIVED_ROUND`` (the step itself was already reported through
-        ``game_events_occurred``). For a dead agent, its death step's events
-        plus anything its bombs did afterwards.
-    """
+def _trainer(self: AgentSelf) -> Trainer:
+    if self.trainer is None:
+        raise RuntimeError("training callback before setup_training")
+    return self.trainer

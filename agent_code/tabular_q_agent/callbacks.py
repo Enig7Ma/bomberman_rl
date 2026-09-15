@@ -11,10 +11,12 @@ Implements ``dev/tabiular_q-learning.md``. Each step:
    at random), which is mapped back to the real board.
 
 The table comes from ``model/q_table.npz`` in this directory, or from the path
-in ``TABULAR_Q_AGENT_MODEL``. The agent does not learn yet -- the training
-callbacks arrive in plan step Q4 -- so it only reads a table and never
-explores. ``policy="random"`` keeps the safe-random control of step Q0:
-uniform over the mask, table ignored. A trained table must beat it.
+in ``TABULAR_Q_AGENT_MODEL``. In training mode (``train.py``) the agent also
+explores with probability ``epsilon`` and hands every step to a
+``transitions.Trainer``, which turns the framework's callbacks into Q-updates.
+Outside training it never explores and never writes. ``policy="random"``
+keeps the safe-random control of step Q0: uniform over the mask, table
+ignored for acting (it still learns off-policy when training).
 
 The framework imports this module as ``agent_code.tabular_q_agent.callbacks``
 and calls each function with a ``types.SimpleNamespace`` as ``self``. It only
@@ -29,6 +31,7 @@ converts them once.
 
 import logging
 import random
+from pathlib import Path
 from typing import Final, Literal, Protocol, TypedDict
 
 import numpy as np
@@ -37,9 +40,10 @@ from numpy.typing import NDArray
 from .config import MODEL_ENV_VAR, Config, model_path
 from .core.world_model import Observation
 from .features import ENCODINGS, Encoding, Extractor
-from .learner import Learner
+from .learner import Learner, Selection
 from .qtable import ACTION_COLUMN, QTable
 from .symmetry import canonical, from_canonical, to_canonical
+from .transitions import Trainer
 
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
 ACTIONS: Final[tuple[Action, ...]] = ("UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB")
@@ -87,8 +91,13 @@ class AgentSelf(Protocol):
     encoding: Encoding
     extractor: Extractor
     """Features and the action mask; keeps geometry and distance caches."""
+    model_file: Path
     table: QTable
     learner: Learner
+    round: int
+    """The round ``act`` last saw; the framework reuses one agent for all."""
+    trainer: Trainer | None
+    """Set by ``train.setup_training``; None outside training."""
 
 
 def setup(self: AgentSelf) -> None:
@@ -97,7 +106,8 @@ def setup(self: AgentSelf) -> None:
     self.rng = random.Random(self.config.seed)
     self.encoding = ENCODINGS[self.config.encoding]
     self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
-    self.table = _load_table(self)
+    self.model_file, explicit = model_path()
+    self.table = _load_table(self, explicit)
     self.learner = Learner(
         self.table,
         gamma=self.config.gamma,
@@ -105,9 +115,11 @@ def setup(self: AgentSelf) -> None:
         alpha_min=self.config.alpha_min,
         rng=self.rng,
     )
+    self.round = 0
+    self.trainer = None
 
 
-def _load_table(self: AgentSelf) -> QTable:
+def _load_table(self: AgentSelf, explicit: bool) -> QTable:
     """The Q-table to play from.
 
     A path named in ``TABULAR_Q_AGENT_MODEL`` is taken at its word: outside
@@ -120,7 +132,7 @@ def _load_table(self: AgentSelf) -> QTable:
     (which is safe-random) rather than crash; the packaging test is what
     guarantees the table ships.
     """
-    path, explicit = model_path()
+    path = self.model_file
     if not path.exists():
         if explicit and not self.train:
             raise FileNotFoundError(
@@ -150,16 +162,30 @@ def act(self: AgentSelf, game_state: GameState) -> Action:
     by the overrun. There is no limit in training mode.
     """
     obs = Observation.from_game_state(game_state)
+    trainer = self.trainer
+    if obs.round != self.round:
+        self.round = obs.round
+        if trainer is not None:
+            trainer.begin_round(obs.round, [other.name for other in obs.others])
+
     extracted = self.extractor.extract(obs)
     if extracted.best_tier == 0:
         self.logger.info(
             f"step {obs.step}: no known escape, playing for time with"
             f" {list(extracted.allowed)}"
         )
-    if self.config.policy == "random":
-        return _BY_NAME[self.rng.choice(extracted.allowed)]
-
     state, symmetry = canonical(extracted.features, self.encoding)
     allowed = [ACTION_COLUMN[to_canonical(a, symmetry)] for a in extracted.allowed]
-    selection = self.learner.select(state, allowed)
-    return _BY_NAME[from_canonical(ACTIONS[selection.action], symmetry)]
+    if trainer is not None:
+        trainer.observe(obs.round, obs.step, state, allowed, extracted.coin_distance)
+
+    if self.config.policy == "random":
+        selection = Selection(self.rng.choice(allowed), explored=False, unseen=False)
+    else:
+        epsilon = self.config.epsilon if trainer is not None else 0.0
+        selection = self.learner.select(state, allowed, epsilon)
+    played = _BY_NAME[from_canonical(ACTIONS[selection.action], symmetry)]
+
+    if trainer is not None:
+        trainer.chose(selection, played)
+    return played
