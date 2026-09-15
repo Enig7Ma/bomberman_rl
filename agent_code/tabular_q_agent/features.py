@@ -4,7 +4,9 @@ Plan: ``dev/tabiular_q-learning.md`` §5.3. Every feature is a small integer
 computed from the observation alone -- no hidden coins, no bomb owners:
 
 - ``mask``: bit ``i`` set when ``ACTIONS[i]`` is allowed by the safety mask.
-- ``coin_dir``: first step towards the nearest reachable visible coin.
+- ``coin_dir``: first step towards the nearest reachable visible coin;
+  ``HERE`` when standing on one, which happens at the start of a round if the
+  start corner holds a coin (it is only collected after the first action).
 - ``crate_dir``: first step towards the best bombing spot, valued as in
   ``bfs_agent`` (crates a blast would destroy, discounted by distance, crates
   already inside a live blast excluded, spots that cannot be fled excluded).
@@ -23,8 +25,9 @@ step. When several first steps are equally short, one is picked with the
 agent's private RNG, never by neighbour order, so the features carry no
 orientation bias -- the board symmetries of plan §5.4 rely on that.
 
-``opp_dir`` has a ``HERE`` value (standing on such a cell already), which the
-plan's table omitted: without it, "in position" and "no opponent" coincide.
+All three direction fields have a ``HERE`` value, which the plan's table gave
+only ``crate_dir``: without it, "in position" and "no target" coincide for
+``opp_dir``, and a coin underfoot could not be encoded at all.
 """
 
 import hashlib
@@ -82,13 +85,16 @@ FieldName = Literal[
 ]
 RADIX: Final[dict[FieldName, int]] = {
     "mask": 1 << len(ACTIONS),
-    "coin_dir": 5,  # moves + NONE
+    "coin_dir": 6,  # moves + NONE + HERE
     "crate_dir": 6,  # moves + NONE + HERE
     "bomb_yield": MAX_YIELD + 1,
     "danger": 2,
     "opp_dir": 6,  # moves + NONE + HERE
     "attack": 3,
 }
+# Fields whose values are directions, which a board symmetry permutes.
+DIRECTION_FIELDS: Final[tuple[FieldName, ...]] = ("coin_dir", "crate_dir", "opp_dir")
+_NO_OPTIONS: Final[frozenset[int]] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -223,6 +229,9 @@ class Extracted:
     # Walking distance to the nearest reachable visible coin, for the coin
     # potential of plan §5.7; None if there is none.
     coin_distance: int | None
+    # For each of ``DIRECTION_FIELDS``, every equally good value the RNG could
+    # have picked; empty when the field is ``NONE`` or not in the encoding.
+    options: dict[FieldName, frozenset[int]]
 
 
 class Extractor:
@@ -261,14 +270,14 @@ class Extractor:
         mine = cache.field(obs.me.pos)
         wanted = self._wanted
 
-        coin_dir, coin_distance = self._coin(obs, board, cache, mine)
-        crate_dir = NONE
+        coin_options, coin_distance = self._coin(obs, board, cache, mine)
+        crate_options = _NO_OPTIONS
         bomb_yield = 0
         danger = 0
-        opp_dir = NONE
+        opp_options = _NO_OPTIONS
         attack = NO_ATTACK
         if "crate_dir" in wanted:
-            crate_dir = self._crate(obs, board, cache, mine, timeline)
+            crate_options = self._crate(obs, board, cache, mine, timeline)
         if "bomb_yield" in wanted:
             live = board.crates.difference(timeline.crate_open)
             hits = sum(1 for cell in geometry.blast(obs.me.pos) if cell in live)
@@ -276,17 +285,17 @@ class Extractor:
         if "danger" in wanted:
             danger = int(bool(timeline.lethal_offsets(obs.me.pos)))
         if "opp_dir" in wanted:
-            opp_dir = self._opponent(obs, board, cache, mine)
+            opp_options = self._opponent(obs, board, cache, mine)
         if "attack" in wanted:
             attack = attack_category(obs, board, timeline)
 
         features = Features(
             mask=mask_bits(allowed),
-            coin_dir=coin_dir,
-            crate_dir=crate_dir,
+            coin_dir=self._pick(coin_options),
+            crate_dir=self._pick(crate_options),
             bomb_yield=bomb_yield,
             danger=danger,
-            opp_dir=opp_dir,
+            opp_dir=self._pick(opp_options),
             attack=attack,
         )
         return Extracted(
@@ -294,7 +303,16 @@ class Extractor:
             allowed=tuple(allowed),
             best_tier=max(a.tier for a in assessments),
             coin_distance=coin_distance,
+            options={
+                "coin_dir": coin_options,
+                "crate_dir": crate_options,
+                "opp_dir": opp_options,
+            },
         )
+
+    def _pick(self, options: frozenset[int]) -> int:
+        """One of ``options``, chosen by the RNG; ``NONE`` if there are none."""
+        return self.rng.choice(sorted(options)) if options else NONE
 
     def _coin(
         self,
@@ -302,10 +320,10 @@ class Extractor:
         board: Board,
         cache: DistanceCache,
         mine: Mapping[Pos, int],
-    ) -> tuple[int, int | None]:
+    ) -> tuple[frozenset[int], int | None]:
         reachable = {coin: mine[coin] for coin in obs.coins if coin in mine}
         if not reachable:
-            return NONE, None
+            return _NO_OPTIONS, None
         nearest = min(reachable.values())
         targets = {coin: d for coin, d in reachable.items() if d == nearest}
         return self._direction(board, cache, obs.me.pos, targets), nearest
@@ -317,10 +335,10 @@ class Extractor:
         cache: DistanceCache,
         mine: Mapping[Pos, int],
         timeline: Timeline,
-    ) -> int:
+    ) -> frozenset[int]:
         spots = bomb_spots(obs, board, cache, timeline, self.params)
         if not spots:
-            return NONE
+            return _NO_OPTIONS
         discount = self.params.discount
         scores = {spot.pos: spot.value * discount ** mine[spot.pos] for spot in spots}
         best = max(scores.values())
@@ -335,7 +353,7 @@ class Extractor:
         board: Board,
         cache: DistanceCache,
         mine: Mapping[Pos, int],
-    ) -> int:
+    ) -> frozenset[int]:
         cells: dict[Pos, int] = {}
         for other in obs.others:
             for cell in board.geometry.blast(other.pos):
@@ -343,7 +361,7 @@ class Extractor:
                 if cell != other.pos and d is not None and d <= self.params.hunt_radius:
                     cells[cell] = d
         if not cells:
-            return NONE
+            return _NO_OPTIONS
         nearest = min(cells.values())
         targets = {cell: d for cell, d in cells.items() if d == nearest}
         return self._direction(board, cache, obs.me.pos, targets)
@@ -354,11 +372,11 @@ class Extractor:
         cache: DistanceCache,
         me: Pos,
         targets: Mapping[Pos, int],
-    ) -> int:
-        """A first step on a shortest walk to one of ``targets``.
+    ) -> frozenset[int]:
+        """Every first step on a shortest walk to one of ``targets``.
 
-        ``targets`` maps each target to its distance from ``me``. ``HERE`` if a
-        target is ``me``; ties between first steps are broken by the RNG.
+        ``targets`` maps each target to its distance from ``me``; a target at
+        ``me`` contributes ``HERE``. The caller picks among ties with the RNG.
         """
         steps: set[int] = set()
         for target, dist in targets.items():
@@ -371,6 +389,4 @@ class Extractor:
                     continue
                 if cache.field(nxt).get(target) == dist - 1:
                     steps.add(direction)
-        if not steps:
-            return NONE
-        return self.rng.choice(sorted(steps))
+        return frozenset(steps)

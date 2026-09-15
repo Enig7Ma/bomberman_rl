@@ -106,6 +106,14 @@ def test_coin_dir_prefers_the_nearest_coin() -> None:
     assert extract(arena(), (1, 1), coins=[(1, 3), (5, 1)]).features.coin_dir == DOWN
 
 
+def test_a_coin_underfoot_is_here() -> None:
+    # Happens on step 1 when a coin was placed on the start corner: the engine
+    # collects coins only after the first action.
+    extracted = extract(arena(), (1, 1), coins=[(1, 1), (1, 3)])
+    assert extracted.features.coin_dir == HERE
+    assert extracted.coin_distance == 0
+
+
 def test_equally_short_first_steps_are_broken_at_random() -> None:
     # (5, 5) is 4 steps from (3, 3) both via (4, 3) and via (3, 4); (4, 4) is a wall.
     seen = {
@@ -248,9 +256,9 @@ def test_smaller_encodings_leave_their_absent_fields_at_defaults() -> None:
 
 
 def test_state_counts() -> None:
-    assert ENCODINGS["E1"].n_states == 64 * 5
-    assert ENCODINGS["E2"].n_states == 64 * 5 * 6 * 4 * 2
-    assert ENCODINGS["E3"].n_states == 64 * 5 * 6 * 4 * 2 * 6 * 3
+    assert ENCODINGS["E1"].n_states == 64 * 6
+    assert ENCODINGS["E2"].n_states == 64 * 6 * 6 * 4 * 2
+    assert ENCODINGS["E3"].n_states == 64 * 6 * 6 * 4 * 2 * 6 * 3
 
 
 def test_every_config_encoding_exists() -> None:
@@ -288,7 +296,7 @@ def test_encoding_is_a_bijection_at_the_ends(name: str) -> None:
 
 def test_encode_rejects_out_of_range_and_absent_fields() -> None:
     with pytest.raises(ValueError):
-        ENCODINGS["E3"].encode(Features(coin_dir=5))
+        ENCODINGS["E3"].encode(Features(coin_dir=6))
     with pytest.raises(ValueError):
         ENCODINGS["E1"].encode(Features(crate_dir=HERE))
     with pytest.raises(ValueError):
