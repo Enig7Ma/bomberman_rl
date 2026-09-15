@@ -75,7 +75,7 @@ def test_blank_env_means_defaults() -> None:
 @pytest.mark.parametrize(
     "raw",
     [
-        '{"gamma": 0.9}',  # unknown field
+        '{"temperature": 0.9}',  # unknown field
         "[1, 2]",  # not an object
         '{"mask": "safest"}',  # not a mask variant
         '{"seed": "0"}',  # not an integer

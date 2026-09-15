@@ -1,12 +1,20 @@
 """tabular_q_agent: tabular Q-learning over a compact abstract state.
 
-Implements ``dev/tabiular_q-learning.md``. The agent does not learn yet: each
-step ``features.Extractor`` grades every legal action with the safety search
-copied from ``bfs_agent`` (``core/``), derives the action mask (``mask``) and
-the categorical state features, and the agent picks an allowed action
-uniformly at random with a private RNG. The features are computed but unused
-until the Q-table arrives (plan step Q3). The random policy stays available as
-the *safe-random* control, which any trained table must beat.
+Implements ``dev/tabiular_q-learning.md``. Each step:
+
+1. ``features.Extractor`` grades every legal action with the safety search
+   copied from ``bfs_agent`` (``core/``) and derives the action mask and the
+   categorical state features;
+2. ``symmetry.canonical`` maps the features to the table row of their orbit
+   under the board's rotations and reflections;
+3. ``learner.Learner`` picks the allowed action with the highest Q-value (ties
+   at random), which is mapped back to the real board.
+
+The table comes from ``model/q_table.npz`` in this directory, or from the path
+in ``TABULAR_Q_AGENT_MODEL``. The agent does not learn yet -- the training
+callbacks arrive in plan step Q4 -- so it only reads a table and never
+explores. ``policy="random"`` keeps the safe-random control of step Q0:
+uniform over the mask, table ignored. A trained table must beat it.
 
 The framework imports this module as ``agent_code.tabular_q_agent.callbacks``
 and calls each function with a ``types.SimpleNamespace`` as ``self``. It only
@@ -26,9 +34,12 @@ from typing import Final, Literal, Protocol, TypedDict
 import numpy as np
 from numpy.typing import NDArray
 
-from .config import Config
+from .config import MODEL_ENV_VAR, Config, model_path
 from .core.world_model import Observation
-from .features import ENCODINGS, Extractor
+from .features import ENCODINGS, Encoding, Extractor
+from .learner import Learner
+from .qtable import ACTION_COLUMN, QTable
+from .symmetry import canonical, from_canonical, to_canonical
 
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
 ACTIONS: Final[tuple[Action, ...]] = ("UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB")
@@ -73,17 +84,62 @@ class AgentSelf(Protocol):
     rng: random.Random
     """Private generator: never touch the global ``random``/NumPy state that
     other agents in the same process share."""
+    encoding: Encoding
     extractor: Extractor
     """Features and the action mask; keeps geometry and distance caches."""
+    table: QTable
+    learner: Learner
 
 
 def setup(self: AgentSelf) -> None:
     """Called once, before the first round, in both play and training mode."""
     self.config = Config.from_env()
     self.rng = random.Random(self.config.seed)
-    self.extractor = Extractor(
-        ENCODINGS[self.config.encoding], self.config.mask, self.rng
+    self.encoding = ENCODINGS[self.config.encoding]
+    self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
+    self.table = _load_table(self)
+    self.learner = Learner(
+        self.table,
+        gamma=self.config.gamma,
+        alpha_omega=self.config.alpha_omega,
+        alpha_min=self.config.alpha_min,
+        rng=self.rng,
     )
+
+
+def _load_table(self: AgentSelf) -> QTable:
+    """The Q-table to play from.
+
+    A path named in ``TABULAR_Q_AGENT_MODEL`` is taken at its word: outside
+    training it must exist and match the encoding, since evaluating a missing
+    or stale checkpoint would silently measure the safe-random control
+    instead. Training may start from a table that does not exist yet.
+
+    The default path is what the tournament uses. There a missing or unusable
+    table is logged as an error and the agent plays from an empty table
+    (which is safe-random) rather than crash; the packaging test is what
+    guarantees the table ships.
+    """
+    path, explicit = model_path()
+    if not path.exists():
+        if explicit and not self.train:
+            raise FileNotFoundError(
+                f"{MODEL_ENV_VAR} names {path}, which does not exist"
+            )
+        report = self.logger.info if self.train else self.logger.error
+        report(f"no Q-table at {path}; starting from an empty table")
+        return QTable.zeros(self.encoding)
+    try:
+        table = QTable.load(path, self.encoding)
+    except Exception as error:
+        if explicit or self.train:
+            raise
+        self.logger.error(
+            f"cannot use the Q-table at {path} ({error}); playing from an empty table"
+        )
+        return QTable.zeros(self.encoding)
+    self.logger.info(f"loaded {path}: {table.visited_states} visited states")
+    return table
 
 
 def act(self: AgentSelf, game_state: GameState) -> Action:
@@ -100,4 +156,10 @@ def act(self: AgentSelf, game_state: GameState) -> Action:
             f"step {obs.step}: no known escape, playing for time with"
             f" {list(extracted.allowed)}"
         )
-    return _BY_NAME[self.rng.choice(extracted.allowed)]
+    if self.config.policy == "random":
+        return _BY_NAME[self.rng.choice(extracted.allowed)]
+
+    state, symmetry = canonical(extracted.features, self.encoding)
+    allowed = [ACTION_COLUMN[to_canonical(a, symmetry)] for a in extracted.allowed]
+    selection = self.learner.select(state, allowed)
+    return _BY_NAME[from_canonical(ACTIONS[selection.action], symmetry)]
