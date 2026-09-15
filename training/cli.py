@@ -1,0 +1,111 @@
+"""Command line: ``python -m training run`` and ``python -m training evaluate``.
+
+::
+
+    # three independent runs of one curriculum, in parallel
+    uv run python -m training run --curriculum dev/experiments/tabular/coins.json \\
+        --out results/tabular_q/coins --runs 3 --jobs 3
+
+    # learning curves for every run under a directory (or for one run)
+    uv run python -m training evaluate results/tabular_q/coins --jobs 4
+
+Run from the repository root. Running ``run`` again on the same ``--out``
+resumes unfinished runs.
+"""
+
+import argparse
+import math
+from collections.abc import Sequence
+from pathlib import Path
+
+from training.config import load_curriculum
+from training.driver import RUN_FILE, read_chunk_records, run_many
+from training.evaluate import evaluate_run, render_curve
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m training",
+        description="Train and evaluate tabular_q_agent through curricula.",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    run = commands.add_parser("run", help="train (or resume) independent runs")
+    run.add_argument("--curriculum", type=Path, required=True)
+    run.add_argument(
+        "--out", type=Path, required=True, help="parent directory of the runs"
+    )
+    run.add_argument("--runs", type=int, default=1, help="number of independent runs")
+    run.add_argument("--seed", type=int, default=0, help="run seed of the first run")
+    run.add_argument(
+        "--jobs", type=int, default=0, help="parallel processes (default: one per run)"
+    )
+    run.add_argument("--no-progress", action="store_true")
+
+    evaluate = commands.add_parser("evaluate", help="evaluate every snapshot")
+    evaluate.add_argument(
+        "path", type=Path, help="a run directory, or a parent of runs"
+    )
+    evaluate.add_argument("--jobs", type=int, default=1)
+    evaluate.add_argument("--no-progress", action="store_true")
+    return parser
+
+
+def render_run_summary(run_dirs: Sequence[Path]) -> str:
+    lines = [
+        "| run | chunks | rounds trained | wall | rounds/s | steps/s "
+        "| visited states |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for run_dir in run_dirs:
+        records = read_chunk_records(run_dir)
+        if not records:
+            lines.append(f"| {run_dir.name} | 0 | 0 | - | - | - | - |")
+            continue
+        wall = sum(record.wall_time for record in records)
+        rounds = sum(record.rounds for record in records)
+        steps = sum(record.engine_steps for record in records)
+        rate = rounds / wall if wall else math.nan
+        step_rate = steps / wall if wall else math.nan
+        last = records[-1]
+        lines.append(
+            f"| {run_dir.name} | {len(records)} | {last.rounds_trained} | {wall:.0f} s "
+            f"| {rate:.2f} | {step_rate:.0f} | {last.visited_states} |"
+        )
+    return "\n".join(lines)
+
+
+def _command_run(args: argparse.Namespace) -> int:
+    curriculum = load_curriculum(args.curriculum)
+    run_seeds = list(range(args.seed, args.seed + args.runs))
+    jobs = args.jobs or len(run_seeds)
+    run_dirs = run_many(
+        curriculum, args.out, run_seeds, jobs=jobs, progress=not args.no_progress
+    )
+    print(render_run_summary(list(run_dirs.values())))
+    return 0
+
+
+def _command_evaluate(args: argparse.Namespace) -> int:
+    path: Path = args.path
+    if (path / RUN_FILE).exists():
+        run_dirs = [path]
+    elif path.is_dir():
+        run_dirs = sorted(p for p in path.iterdir() if (p / RUN_FILE).exists())
+    else:
+        run_dirs = []
+    if not run_dirs:
+        print(f"no training runs under {path}")
+        return 2
+    for run_dir in run_dirs:
+        curves = evaluate_run(run_dir, jobs=args.jobs, progress=not args.no_progress)
+        for preset, points in curves.items():
+            print(render_curve(points, f"{run_dir.name}: {preset}"))
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.command == "run":
+        return _command_run(args)
+    return _command_evaluate(args)

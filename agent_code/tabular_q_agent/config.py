@@ -23,17 +23,21 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Literal, cast, get_args
 
-ENV_VAR = "TABULAR_Q_AGENT_PARAMS"
-
 AGENT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = AGENT_DIR.parents[1]
 
+# Environment variables are named after the agent directory -- TABULAR_Q_AGENT_*
+# here -- so a copy of this agent under another name (a frozen training
+# opponent, see ``training/frozen.py``) reads its own and never the learner's.
+ENV_PREFIX = AGENT_DIR.name.upper()
+ENV_VAR = f"{ENV_PREFIX}_PARAMS"
+
 # The Q-table to load (and, in training, to save). Unset under the official
 # framework, where the table shipped inside the agent directory is used.
-MODEL_ENV_VAR = "TABULAR_Q_AGENT_MODEL"
+MODEL_ENV_VAR = f"{ENV_PREFIX}_MODEL"
 DEFAULT_MODEL_PATH = AGENT_DIR / "model" / "q_table.npz"
 # Where training appends one JSON record per round.
-METRICS_ENV_VAR = "TABULAR_Q_AGENT_METRICS"
+METRICS_ENV_VAR = f"{ENV_PREFIX}_METRICS"
 DEFAULT_METRICS_PATH = AGENT_DIR / "logs" / "train_metrics.jsonl"
 
 # Which safety tiers the agent may choose from (plan §5.2): the best tier
