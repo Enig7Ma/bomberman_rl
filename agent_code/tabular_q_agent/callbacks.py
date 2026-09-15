@@ -1,30 +1,37 @@
-"""Agent callbacks that are always loaded: ``setup`` and ``act``.
+"""tabular_q_agent: tabular Q-learning over a compact abstract state.
 
-This agent is the keyboard-controlled player (``--agents user_agent`` in the
-GUI): ``act`` returns whatever key was pressed. Everything else in this file
-and in ``train.py`` is a typed skeleton meant to be copied into a new
-``agent_code/<name>/`` directory as a starting point.
+Implements ``dev/tabiular_q-learning.md``. At step Q0 the agent does not learn
+yet: each step it grades every legal action with the safety search copied from
+``bfs_agent`` (``core/``), keeps the actions the mask allows (``mask``), and
+picks one uniformly at random with a private RNG. That policy stays available
+as the *safe-random* control, which any trained table must beat.
 
-The framework imports this module as ``agent_code.<name>.callbacks`` and calls
-each function with a ``types.SimpleNamespace`` as ``self``. It only checks the
-*number* of parameters (``agents.AGENT_API``), so the annotations below are
-free to be precise. ``AgentSelf`` declares what lives on that namespace; add
-every attribute your agent stores (``self.model = ...``) to it, so pyright
-checks the attribute accesses.
+The framework imports this module as ``agent_code.tabular_q_agent.callbacks``
+and calls each function with a ``types.SimpleNamespace`` as ``self``. It only
+checks the *number* of parameters (``agents.AGENT_API``), so the annotations
+below are free to be precise. ``AgentSelf`` declares what lives on that
+namespace.
 
 Coordinates in ``GameState`` are declared as ``int``, but the engine hands out
-a mixture of Python and NumPy integers. Convert them once with ``int(...)`` if
-that matters (e.g. for hashing into dicts).
+a mixture of Python and NumPy integers; ``core.world_model.Observation``
+converts them once.
 """
 
 import logging
+import random
 from typing import Final, Literal, Protocol, TypedDict
 
 import numpy as np
 from numpy.typing import NDArray
 
+from .config import Config
+from .core.safety import Board, assess_actions, threat_bombs
+from .core.world_model import Geometry, Observation, danger_timeline
+from .mask import allowed_actions
+
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
 ACTIONS: Final[tuple[Action, ...]] = ("UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB")
+_BY_NAME: Final[dict[str, Action]] = {action: action for action in ACTIONS}
 
 Pos = tuple[int, int]
 # (name, score, bomb available, (x, y))
@@ -55,29 +62,31 @@ class GameState(TypedDict):
 
 
 class AgentSelf(Protocol):
-    """Attributes on the ``self`` namespace the framework passes in.
-
-    ``logger`` and ``train`` are preset by ``agents.AgentRunner``; declare your
-    own attributes below them.
-    """
+    """Attributes on the ``self`` namespace the framework passes in."""
 
     logger: logging.Logger
-    """Writes to ``agent_code/<name>/logs/<agent_name>.log``."""
+    """Preset: writes to ``agent_code/tabular_q_agent/logs/<agent_name>.log``."""
     train: bool
-    """True when started with ``--train`` covering this agent."""
+    """Preset: True when started with ``--train`` covering this agent."""
+    config: Config
+    rng: random.Random
+    """Private generator: never touch the global ``random``/NumPy state that
+    other agents in the same process share."""
+    geometry: Geometry | None
+    """Wall-derived neighbour lists and blast cells, kept across rounds."""
 
 
 def setup(self: AgentSelf) -> None:
-    """Called once, before the first round, in both play and training mode.
+    """Called once, before the first round, in both play and training mode."""
+    self.config = Config.from_env()
+    self.rng = random.Random(self.config.seed)
+    self.geometry = None
 
-    Initialise everything ``act`` needs and store it on ``self``, e.g. load
-    trained parameters when ``self.train`` is False. Files are best resolved
-    relative to ``pathlib.Path(__file__).parent`` so they are found regardless
-    of the working directory.
 
-    The framework reuses this one ``self`` for every round; reset per-round
-    state in ``act`` when ``game_state["round"]`` changes.
-    """
+def _geometry(self: AgentSelf, obs: Observation) -> Geometry:
+    if self.geometry is None or not self.geometry.matches(obs.field):
+        self.geometry = Geometry(obs.field)
+    return self.geometry
 
 
 def act(self: AgentSelf, game_state: GameState) -> Action:
@@ -86,11 +95,15 @@ def act(self: AgentSelf, game_state: GameState) -> Action:
     Must return within ``settings.TIMEOUT`` (0.5 s) outside training mode, or
     the engine executes ``WAIT`` instead and shortens the next step's budget
     by the overrun. There is no limit in training mode.
-
-    This agent plays the key pressed in the GUI, and waits if there is none.
     """
-    key = game_state["user_input"]
-    for action in ACTIONS:
-        if key == action:
-            return action
-    return "WAIT"
+    obs = Observation.from_game_state(game_state)
+    geometry = _geometry(self, obs)
+    board = Board(obs, geometry)
+    timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)
+    assessments = assess_actions(obs, board, timeline, threat_bombs(obs))
+    allowed = allowed_actions(assessments, self.config.mask)
+    if max(a.tier for a in assessments) == 0:
+        self.logger.info(
+            f"step {obs.step}: no known escape, playing for time with {allowed}"
+        )
+    return _BY_NAME[self.rng.choice(allowed)]
