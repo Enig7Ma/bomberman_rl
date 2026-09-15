@@ -1,10 +1,12 @@
 """tabular_q_agent: tabular Q-learning over a compact abstract state.
 
-Implements ``dev/tabiular_q-learning.md``. At step Q0 the agent does not learn
-yet: each step it grades every legal action with the safety search copied from
-``bfs_agent`` (``core/``), keeps the actions the mask allows (``mask``), and
-picks one uniformly at random with a private RNG. That policy stays available
-as the *safe-random* control, which any trained table must beat.
+Implements ``dev/tabiular_q-learning.md``. The agent does not learn yet: each
+step ``features.Extractor`` grades every legal action with the safety search
+copied from ``bfs_agent`` (``core/``), derives the action mask (``mask``) and
+the categorical state features, and the agent picks an allowed action
+uniformly at random with a private RNG. The features are computed but unused
+until the Q-table arrives (plan step Q3). The random policy stays available as
+the *safe-random* control, which any trained table must beat.
 
 The framework imports this module as ``agent_code.tabular_q_agent.callbacks``
 and calls each function with a ``types.SimpleNamespace`` as ``self``. It only
@@ -25,9 +27,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from .config import Config
-from .core.safety import Board, assess_actions, threat_bombs
-from .core.world_model import Geometry, Observation, danger_timeline
-from .mask import allowed_actions
+from .core.world_model import Observation
+from .features import ENCODINGS, Extractor
 
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
 ACTIONS: Final[tuple[Action, ...]] = ("UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB")
@@ -72,21 +73,17 @@ class AgentSelf(Protocol):
     rng: random.Random
     """Private generator: never touch the global ``random``/NumPy state that
     other agents in the same process share."""
-    geometry: Geometry | None
-    """Wall-derived neighbour lists and blast cells, kept across rounds."""
+    extractor: Extractor
+    """Features and the action mask; keeps geometry and distance caches."""
 
 
 def setup(self: AgentSelf) -> None:
     """Called once, before the first round, in both play and training mode."""
     self.config = Config.from_env()
     self.rng = random.Random(self.config.seed)
-    self.geometry = None
-
-
-def _geometry(self: AgentSelf, obs: Observation) -> Geometry:
-    if self.geometry is None or not self.geometry.matches(obs.field):
-        self.geometry = Geometry(obs.field)
-    return self.geometry
+    self.extractor = Extractor(
+        ENCODINGS[self.config.encoding], self.config.mask, self.rng
+    )
 
 
 def act(self: AgentSelf, game_state: GameState) -> Action:
@@ -97,13 +94,10 @@ def act(self: AgentSelf, game_state: GameState) -> Action:
     by the overrun. There is no limit in training mode.
     """
     obs = Observation.from_game_state(game_state)
-    geometry = _geometry(self, obs)
-    board = Board(obs, geometry)
-    timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)
-    assessments = assess_actions(obs, board, timeline, threat_bombs(obs))
-    allowed = allowed_actions(assessments, self.config.mask)
-    if max(a.tier for a in assessments) == 0:
+    extracted = self.extractor.extract(obs)
+    if extracted.best_tier == 0:
         self.logger.info(
-            f"step {obs.step}: no known escape, playing for time with {allowed}"
+            f"step {obs.step}: no known escape, playing for time with"
+            f" {list(extracted.allowed)}"
         )
-    return _BY_NAME[self.rng.choice(allowed)]
+    return _BY_NAME[self.rng.choice(extracted.allowed)]

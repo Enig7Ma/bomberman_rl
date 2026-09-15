@@ -24,6 +24,11 @@ ENV_VAR = "TABULAR_Q_AGENT_PARAMS"
 MaskVariant = Literal["best_tier", "min_tier_2", "any_escape", "legal"]
 MASK_VARIANTS: tuple[MaskVariant, ...] = get_args(MaskVariant)
 
+# Which state abstraction to use (plan §5.3); ``features.ENCODINGS`` defines
+# them. E3 is the submission's; E1 and E2 are small enough to debug by hand.
+EncodingName = Literal["E1", "E2", "E3"]
+ENCODING_NAMES: tuple[EncodingName, ...] = get_args(EncodingName)
+
 
 def _is_seed(value: object) -> bool:
     # Overrides come from JSON, so the annotations alone guarantee nothing.
@@ -33,12 +38,17 @@ def _is_seed(value: object) -> bool:
 @dataclass(frozen=True)
 class Config:
     mask: MaskVariant = "best_tier"
+    encoding: EncodingName = "E3"
     # Seed for the agent's private RNG; None draws one from the operating system.
     seed: int | None = None
 
     def __post_init__(self) -> None:
         if self.mask not in MASK_VARIANTS:
             raise ValueError(f"mask must be one of {MASK_VARIANTS}, got {self.mask!r}")
+        if self.encoding not in ENCODING_NAMES:
+            raise ValueError(
+                f"encoding must be one of {ENCODING_NAMES}, got {self.encoding!r}"
+            )
         if not _is_seed(self.seed):
             raise ValueError(f"seed must be an integer or null, got {self.seed!r}")
 
