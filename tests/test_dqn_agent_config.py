@@ -16,6 +16,7 @@ from agent_code.dqn_agent.config import (
     metrics_path,
     model_path,
 )
+from agent_code.dqn_agent.encoder import ENCODERS
 
 
 def test_defaults_and_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -76,3 +77,15 @@ def test_paths_are_independent_of_cwd(
 @pytest.mark.parametrize("mask", ["best_tier", "min_tier_2", "any_escape", "legal"])
 def test_every_shared_mask_is_supported(mask: str) -> None:
     assert Config.from_env({ENV_VAR: json.dumps({"mask": mask})}).mask == mask
+
+
+def test_encoder_defaults_and_environment_override() -> None:
+    assert Config().encoder == "onehot_e3"
+    parsed = Config.from_env({ENV_VAR: '{"encoder": "onehot_e3"}'})
+    assert ENCODERS[parsed.encoder].dim == 32
+
+
+@pytest.mark.parametrize("value", ["missing", "dense_v1", "", None, 1, [], {}])
+def test_unknown_or_invalid_encoder_is_rejected(value: object) -> None:
+    with pytest.raises(ValueError, match="encoder"):
+        Config.from_env({ENV_VAR: json.dumps({"encoder": value})})

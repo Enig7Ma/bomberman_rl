@@ -11,6 +11,7 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Literal, cast, get_args
 
+from .encoder import ENCODERS
 from .mask import MASK_VARIANTS, MaskVariant
 
 AGENT_DIR = Path(__file__).resolve().parent
@@ -49,10 +50,15 @@ def _is_seed(value: object) -> bool:
     return value is None or (isinstance(value, int) and not isinstance(value, bool))
 
 
+def _is_encoder(value: object) -> bool:
+    return isinstance(value, str) and value in ENCODERS
+
+
 @dataclass(frozen=True)
 class Config:
     mask: MaskVariant = "best_tier"
     encoding: Literal["E3"] = "E3"
+    encoder: str = "onehot_e3"
     policy: Policy = "random"
     seed: int | None = None
 
@@ -61,6 +67,10 @@ class Config:
             raise ValueError(f"mask must be one of {MASK_VARIANTS}, got {self.mask!r}")
         if self.encoding != "E3":
             raise ValueError(f"encoding must be E3, got {self.encoding!r}")
+        if not _is_encoder(self.encoder):
+            raise ValueError(
+                f"encoder must be one of {tuple(ENCODERS)}, got {self.encoder!r}"
+            )
         if self.policy not in POLICIES:
             raise ValueError(f"policy must be one of {POLICIES}, got {self.policy!r}")
         if not _is_seed(self.seed):
