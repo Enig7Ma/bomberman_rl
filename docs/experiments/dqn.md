@@ -177,3 +177,60 @@ After diagnostic changes: callbacks/vendored tests **36 passed**, Ruff check
 and format passed (103 files), Pyright 0 errors/warnings, `git diff --check`
 passed. The full **736 passed** result above remains the D2 pre-diagnostic
 run; production agent code was not changed during this diagnostic.
+
+## D3, part 1 — replay buffer only
+
+Implemented `agent_code/dqn_agent/replay.py` from local plan sections 5.4–5.5
+and D3. This is **not completion of D3**. No learner, Torch training, callback
+integration, checkpoint persistence or gameplay changes are included.
+
+API: `ReplayBuffer(capacity, input_dim)`, `push(ReplayTransition(...))`,
+`len(buffer)` and `sample(batch_size, rng, gamma=..., c_coin=...,
+crate_aid=..., death_aid=...) -> ReplayBatch`. Capacity and input dimension are
+positive integers; the caller supplies the encoder dimension (32 for OneHotE3).
+All state vectors/actions/masks must already be in canonical coordinates;
+replay stores them unchanged and cannot infer coordinate systems from vectors.
+
+Decisions:
+
+- Fixed NumPy structured storage, with all 13 fields and exact dtypes from
+  section 5.5: float32 states/base/unit potentials, uint8 action/crates/deaths/
+  stage, bool successor mask and terminal flag, uint32 round and uint64
+  transition IDs. Death count is 0 or 1, including suicide's two death events.
+- FIFO ring replacement: capacity 3 holding A,B,C receives D and retains
+  B,C,D; the next insertion replaces B. Length stops growing at capacity.
+- Uniform sampling **with replacement**, only from filled slots, using the
+  supplied `numpy.random.Generator`. Duplicate samples are intentional; a
+  batch can exceed the current length. Empty replay and nonpositive batch
+  sizes are errors. Global RNG state is untouched.
+- Inputs are validated before storage changes, then copied. Each batch owns
+  independent contiguous arrays; mutating inputs or batches cannot modify the
+  buffer. Wrong shapes/dtypes, nonfinite or overflowing values, invalid action
+  indices/IDs, and empty nonterminal masks are rejected. Integer scalar inputs
+  are Python ints (not bools); array dtypes must already match the schema.
+- Terminal entries normalise `x_next`, `mask_next` and `phi_unit_next` to zero,
+  even when valid nonzero placeholders were supplied. Nonterminal successor
+  masks must allow at least one action. Unit potentials are in [0,1].
+- Replay stores reward ingredients, never a cached total. Sampling computes
+  `base + crate_aid*crates + death_aid*deaths + c_coin*(gamma*phi_unit_next-phi_unit)`.
+  Float64 intermediates reduce cancellation; batch rewards are finite float32.
+  Coefficients may change between samples without clearing replay. Comparison
+  with shared `Rewards` uses its `coin_potential=c_coin`, `bomb_aid=0` and
+  `spot_potential=0`; the latter two Q7 extensions are outside this D3 schema.
+
+Validation: **52 replay tests passed**, including multiple wraps, capacity 1,
+partial-buffer sampling, seeded reproducibility, approximate uniformity,
+ownership, contiguous batches, dtype/ID boundaries, terminal handling, and
+failed-input preservation of rows/write order. Reward tests use 100 generated
+transitions, gamma values 0/0.99/1 and four coefficient settings on the same
+buffer, compared with `Rewards` (including suicide and living round-end cases).
+
+The existing `replay.py` exclusion matched the new nested file in Ruff. Both
+check configurations now spell the legacy root path as `./replay.py`; no new
+exclusion was added. `ruff check --show-files agent_code/dqn_agent/replay.py`
+confirms the new module is checked. Pyright also reports/checks the new module.
+
+Final validation: full pytest **788 passed**; Ruff check and format check
+passed; Pyright with `.venv/Scripts/python.exe` reported 0 errors/warnings;
+`git diff --check` passed. Existing gameplay and shared-module tests remain
+unchanged. The rest of D3 is deferred to subsequent tasks.
