@@ -64,10 +64,19 @@ print(json.dumps({
 """
 
 
-def probe() -> dict[str, Any]:
-    """Import the agent in a fresh interpreter and report what it loaded."""
+# Measure framework dependencies separately so an agent-only import cannot
+# grant itself an exception to ALLOWED_ROOTS.
+FRAMEWORK_PROBE = """
+import json, sys
+import settings
+print(json.dumps({"roots": sorted({name.split(".")[0] for name in sys.modules})}))
+"""
+
+
+def probe(code: str = PROBE) -> dict[str, Any]:
+    """Run an import probe in a fresh interpreter and report what it loaded."""
     finished = subprocess.run(
-        [sys.executable, "-c", PROBE],
+        [sys.executable, "-c", code],
         cwd=REPO,
         capture_output=True,
         text=True,
@@ -103,7 +112,11 @@ def test_the_agent_only_needs_numpy_and_the_framework(
     # Third-party roots the agent pulls in, ignoring the standard library.
     stdlib = set(sys.stdlib_module_names)
     extra = {name for name in imported["roots"] if name not in stdlib}
-    assert extra <= ALLOWED_ROOTS, sorted(extra - ALLOWED_ROOTS)
+    # settings -> fallbacks -> tqdm -> colorama on Windows. Only allow this
+    # transitive dependency when the framework itself actually imports it.
+    framework_roots = set(probe(FRAMEWORK_PROBE)["roots"])
+    allowed = ALLOWED_ROOTS | ({"colorama"} & framework_roots)
+    assert extra <= allowed, sorted(extra - allowed)
 
 
 def test_setup_is_fast_enough(imported: dict[str, Any]) -> None:
