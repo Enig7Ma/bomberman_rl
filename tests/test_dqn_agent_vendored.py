@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 
+from agent_code.dqn_agent.encoder import OneHotE3
+from agent_code.dqn_agent.network import QNetwork
+
 REPO = Path(__file__).resolve().parent.parent
 TABULAR = REPO / "agent_code" / "tabular_q_agent"
 DQN = REPO / "agent_code" / "dqn_agent"
@@ -38,7 +41,10 @@ def test_core_contains_only_shared_modules() -> None:
     assert list(DQN.glob("*/callbacks.py")) == []
 
 
-def test_agent_works_without_other_agents_or_training(tmp_path: Path) -> None:
+@pytest.mark.parametrize("loaded", [False, True])
+def test_agent_works_without_other_agents_or_training(
+    tmp_path: Path, loaded: bool
+) -> None:
     # Copy only the submission and the framework modules it is allowed to need.
     destination = tmp_path / "agent_code" / "dqn_agent"
     shutil.copytree(
@@ -60,10 +66,15 @@ action = callbacks.act(agent, {
     'self': ('probe', 0, True, (1, 1)), 'others': [], 'bombs': [], 'coins': [],
     'explosion_map': np.zeros_like(field, dtype=np.float64), 'user_input': None,
 })
-print(json.dumps({'action': action, 'modules': sorted(sys.modules)}))
+print(json.dumps({'action': action, 'loaded': agent.q_function is not None,
+                  'modules': sorted(sys.modules)}))
 """
     env = {k: v for k, v in os.environ.items() if not k.startswith("DQN_AGENT_")}
     env["PYTHONPATH"] = str(tmp_path)
+    if loaded:
+        path = tmp_path / "random.npz"
+        QNetwork.random(OneHotE3(), 0).save(path)
+        env["DQN_AGENT_MODEL"] = str(path)
     finished = subprocess.run(
         [sys.executable, "-B", "-c", script],
         cwd=tmp_path,
@@ -74,6 +85,7 @@ print(json.dumps({'action': action, 'modules': sorted(sys.modules)}))
     )
     result = json.loads(finished.stdout.splitlines()[-1])
     assert result["action"] in {"RIGHT", "DOWN", "WAIT", "BOMB"}
+    assert result["loaded"] is loaded
     modules: list[str] = result["modules"]
     roots = {name.split(".")[0] for name in modules}
     assert roots.isdisjoint({"torch", "training", "tournament", "dev", "scipy"})

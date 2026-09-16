@@ -1,8 +1,7 @@
-"""D0 safe-random control over the shared E3 safety mask.
+"""D2: canonical E3 inputs and masked NumPy Q-network inference.
 
-There is no network or training yet. Both policy settings use uniform allowed
-actions; requesting learned play logs that this is still the scaffold. Only
-this agent's vendored modules, NumPy and the framework are needed at runtime.
+Missing/broken default weights fall back to safe-random with an error log.
+Explicit model paths are strict; policy="random" remains the control.
 """
 
 import logging
@@ -12,8 +11,11 @@ from pathlib import Path
 from typing import Any, Literal, Protocol, cast
 
 from .config import Config, model_path
-from .core.world_model import Observation
+from .core.world_model import ACTIONS, Observation
+from .encoder import ENCODERS, Encoder
 from .features import ENCODINGS, Encoding, Extractor
+from .network import QFunction, QNetwork, masked_greedy
+from .symmetry import canonical, from_canonical, to_canonical
 
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
 
@@ -27,6 +29,8 @@ class AgentSelf(Protocol):
     extractor: Extractor
     model_file: Path
     round: int
+    encoder: Encoder
+    q_function: QFunction | None
 
 
 def setup(self: AgentSelf) -> None:
@@ -34,10 +38,33 @@ def setup(self: AgentSelf) -> None:
     self.rng = random.Random(self.config.seed)
     self.encoding = ENCODINGS[self.config.encoding]
     self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
-    self.model_file, _ = model_path()
+    self.encoder = ENCODERS[self.config.encoder]
+    self.model_file, explicit = model_path()
+    self.q_function = _load_network(self, explicit)
     self.round = 0
-    if self.config.policy == "learned":
-        self.logger.warning("D0 scaffold has no Q-network; playing safe-random")
+
+
+def _load_network(self: AgentSelf, explicit: bool) -> QNetwork | None:
+    if not self.model_file.exists():
+        if explicit and not self.train:
+            raise FileNotFoundError(self.model_file)
+        if self.train:
+            return QNetwork.random(self.encoder, self.config.init_seed)
+        self.logger.error(f"no Q-network at {self.model_file}; playing safe-random")
+        return None
+    try:
+        network = QNetwork.load(self.model_file, self.encoder)
+    except Exception as error:
+        if explicit or self.train:
+            raise
+        self.logger.error(
+            f"cannot use Q-network at {self.model_file} ({error}); playing safe-random"
+        )
+        return None
+    self.logger.info(
+        f"loaded Q-network {self.model_file}: schema {self.encoder.schema_id}"
+    )
+    return network
 
 
 def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
@@ -46,4 +73,10 @@ def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
         self.round = obs.round
         self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
     extracted = self.extractor.extract(obs)
-    return cast(Action, self.rng.choice(extracted.allowed))
+    if self.config.policy == "random" or self.q_function is None:
+        return cast(Action, self.rng.choice(extracted.allowed))
+    index, symmetry = canonical(extracted.features, self.encoding)
+    x = self.encoder.encode(self.encoding.decode(index), extracted)
+    allowed = [ACTIONS.index(to_canonical(a, symmetry)) for a in extracted.allowed]
+    action = masked_greedy(self.q_function.values(x), allowed, self.rng)
+    return cast(Action, from_canonical(ACTIONS[action], symmetry))

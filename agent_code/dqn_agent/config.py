@@ -1,7 +1,7 @@
-"""DQN scaffold settings and repository-relative file locations (plan D0).
+"""DQN inference settings and repository-relative file locations.
 
-The scaffold plays safe-random. Network and training parameters are added only
-when their implementations exist. Paths do not depend on the framework's cwd.
+The learned policy uses NumPy weights; random is an explicit control policy.
+Paths do not depend on the framework's cwd.
 """
 
 import json
@@ -54,13 +54,18 @@ def _is_encoder(value: object) -> bool:
     return isinstance(value, str) and value in ENCODERS
 
 
+def _is_init_seed(value: object) -> bool:
+    return value is None or (type(value) is int and value >= 0)
+
+
 @dataclass(frozen=True)
 class Config:
     mask: MaskVariant = "best_tier"
     encoding: Literal["E3"] = "E3"
     encoder: str = "onehot_e3"
-    policy: Policy = "random"
+    policy: Policy = "learned"
     seed: int | None = None
+    init_seed: int | None = None
 
     def __post_init__(self) -> None:
         if self.mask not in MASK_VARIANTS:
@@ -75,6 +80,8 @@ class Config:
             raise ValueError(f"policy must be one of {POLICIES}, got {self.policy!r}")
         if not _is_seed(self.seed):
             raise ValueError(f"seed must be an integer or null, got {self.seed!r}")
+        if not _is_init_seed(self.init_seed):
+            raise ValueError("init_seed must be a nonnegative integer or null")
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Config":

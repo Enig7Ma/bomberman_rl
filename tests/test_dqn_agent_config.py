@@ -22,7 +22,7 @@ from agent_code.dqn_agent.encoder import ENCODERS
 def test_defaults_and_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
     assert Config.from_env({}) == Config()
     assert Config.from_env({ENV_VAR: "  "}) == Config()
-    assert Config().policy == "random"
+    assert Config().policy == "learned"
     assert Config().encoding == "E3"
     monkeypatch.setenv(ENV_VAR, '{"mask": "legal", "policy": "learned", "seed": 4}')
     assert Config.from_env() == Config(mask="legal", policy="learned", seed=4)
@@ -41,6 +41,10 @@ def test_defaults_and_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
         '{"seed": true}',
         '{"seed": 1.5}',
         '{"seed": "2"}',
+        '{"init_seed": true}',
+        '{"init_seed": -1}',
+        '{"init_seed": 1.5}',
+        '{"init_seed": "2"}',
     ],
 )
 def test_invalid_configuration_is_rejected(raw: str) -> None:
@@ -50,6 +54,11 @@ def test_invalid_configuration_is_rejected(raw: str) -> None:
 
 def test_tabular_environment_does_not_configure_dqn() -> None:
     assert Config.from_env({"TABULAR_Q_AGENT_PARAMS": '{"seed": 7}'}) == Config()
+
+
+@pytest.mark.parametrize("seed", [None, 0, 123])
+def test_init_seed(seed: int | None) -> None:
+    assert Config.from_env({ENV_VAR: json.dumps({"init_seed": seed})}).init_seed == seed
 
 
 def test_paths_are_independent_of_cwd(
