@@ -13,9 +13,15 @@ longest-surviving actions.
 """
 
 from collections.abc import Sequence
+from typing import Literal, get_args
 
-from .config import MaskVariant
 from .core.safety import Assessment, safest
+
+# Which safety tiers the agent may choose from (plan §5.2): the best tier
+# available, anything that survives static opponents (tier >= 2), anything with
+# some known escape (tier >= 1), or every legal action.
+MaskVariant = Literal["best_tier", "min_tier_2", "any_escape", "legal"]
+MASK_VARIANTS: tuple[MaskVariant, ...] = get_args(MaskVariant)
 
 
 def allowed_actions(

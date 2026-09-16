@@ -38,7 +38,6 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from typing import Final, Literal
 
-from .config import MaskVariant
 from .core.attack import opponent_escapes
 from .core.params import Params
 from .core.planning import DistanceCache, bomb_spots
@@ -55,7 +54,7 @@ from .core.world_model import (
     own_bomb,
     step,
 )
-from .mask import allowed_actions
+from .mask import MaskVariant, allowed_actions
 
 # Bump on any change to what a feature means, so stale tables are refused.
 FEATURE_VERSION: Final = 1
