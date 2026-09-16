@@ -70,6 +70,18 @@ PRESETS: dict[str, Preset] = {
         control="rule_based_agent",
         description="Course task 3 (hard): opponents that bomb only for coins.",
     ),
+    "mixed": Preset(
+        opponents=("rule_based_agent", "coin_collector_agent", "peaceful_agent"),
+        scenario="classic",
+        control="rule_based_agent",
+        description="Generalisation: one opponent of each supplied behaviour.",
+    ),
+    "vs-bfs": Preset(
+        opponents=("bfs_agent",) * 3,
+        scenario="classic",
+        control="rule_based_agent",
+        description="Stronger held-out style than the incumbent: the search agent.",
+    ),
     "coin-heaven-solo": Preset(
         opponents=(),
         scenario="coin-heaven",
@@ -81,6 +93,12 @@ PRESETS: dict[str, Preset] = {
         scenario="loot-crate",
         control="rule_based_agent",
         description="Course task 2: demolition without opponents, 50 coins.",
+    ),
+    "classic-solo": Preset(
+        opponents=(),
+        scenario="classic",
+        control="rule_based_agent",
+        description="The tournament board without opponents: 9 coins under crates.",
     ),
 }
 

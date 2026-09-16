@@ -229,6 +229,12 @@ class Extracted:
     # Walking distance to the nearest reachable visible coin, for the coin
     # potential of plan §5.7; None if there is none.
     coin_distance: int | None
+    # Walking distance to the bombing spot ``crate_dir`` points to, for the
+    # spot potential (Q7); None without a spot or outside the encoding.
+    crate_distance: int | None
+    # Live crates a bomb dropped here would destroy, uncapped (``bomb_yield``
+    # is this capped at 3); for the ``bomb_aid`` training aid.
+    bomb_hits: int
     # For each of ``DIRECTION_FIELDS``, every equally good value the RNG could
     # have picked; empty when the field is ``NONE`` or not in the encoding.
     options: dict[FieldName, frozenset[int]]
@@ -272,16 +278,19 @@ class Extractor:
 
         coin_options, coin_distance = self._coin(obs, board, cache, mine)
         crate_options = _NO_OPTIONS
+        crate_distance: int | None = None
         bomb_yield = 0
         danger = 0
         opp_options = _NO_OPTIONS
         attack = NO_ATTACK
         if "crate_dir" in wanted:
-            crate_options = self._crate(obs, board, cache, mine, timeline)
+            crate_options, crate_distance = self._crate(
+                obs, board, cache, mine, timeline
+            )
+        live = board.crates.difference(timeline.crate_open)
+        bomb_hits = sum(1 for cell in geometry.blast(obs.me.pos) if cell in live)
         if "bomb_yield" in wanted:
-            live = board.crates.difference(timeline.crate_open)
-            hits = sum(1 for cell in geometry.blast(obs.me.pos) if cell in live)
-            bomb_yield = min(hits, MAX_YIELD)
+            bomb_yield = min(bomb_hits, MAX_YIELD)
         if "danger" in wanted:
             danger = int(bool(timeline.lethal_offsets(obs.me.pos)))
         if "opp_dir" in wanted:
@@ -303,6 +312,8 @@ class Extractor:
             allowed=tuple(allowed),
             best_tier=max(a.tier for a in assessments),
             coin_distance=coin_distance,
+            crate_distance=crate_distance,
+            bomb_hits=bomb_hits,
             options={
                 "coin_dir": coin_options,
                 "crate_dir": crate_options,
@@ -335,17 +346,18 @@ class Extractor:
         cache: DistanceCache,
         mine: Mapping[Pos, int],
         timeline: Timeline,
-    ) -> frozenset[int]:
+    ) -> tuple[frozenset[int], int | None]:
         spots = bomb_spots(obs, board, cache, timeline, self.params)
         if not spots:
-            return _NO_OPTIONS
+            return _NO_OPTIONS, None
         discount = self.params.discount
         scores = {spot.pos: spot.value * discount ** mine[spot.pos] for spot in spots}
         best = max(scores.values())
         targets = {
             pos: mine[pos] for pos, score in scores.items() if score >= best - _TIE
         }
-        return self._direction(board, cache, obs.me.pos, targets)
+        direction = self._direction(board, cache, obs.me.pos, targets)
+        return direction, min(targets.values())
 
     def _opponent(
         self,

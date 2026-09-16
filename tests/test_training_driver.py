@@ -294,3 +294,53 @@ def test_the_cli_runs_independent_seeds_in_parallel(tmp_path: Path) -> None:
     assert (out / "run_6" / CHUNKS_FILE).exists()
     assert cli.main(["evaluate", str(out), "--no-progress"]) == 0
     assert cli.main(["evaluate", str(tmp_path / "nothing")]) == 2
+
+
+# --- mixed scenarios and continued tables -------------------------------------------
+
+
+def test_a_lineup_can_override_the_stage_scenario() -> None:
+    mixed = Stage(
+        name="solo",
+        scenario="loot-crate",
+        lineups=(Lineup((), 1.0), Lineup((), 1.0, "classic")),
+        rounds=200,
+        epsilon_start=0.1,
+        epsilon_end=0.1,
+    )
+    plan = plan_chunks(curriculum(mixed), run_seed=0)
+    classic = sum(chunk.scenario == "classic" for chunk in plan)
+    assert {chunk.scenario for chunk in plan} == {"loot-crate", "classic"}
+    assert 0.35 < classic / len(plan) < 0.65
+
+
+def test_a_run_can_continue_another_runs_table(
+    smoke_run: tuple[Path, list[ChunkRecord]], tmp_path: Path
+) -> None:
+    source_dir, _ = smoke_run
+    source = source_dir / MODEL_FILE  # trained 3 rounds
+    source_bytes = source.read_bytes()
+    course = curriculum(stage(rounds=2))
+    run_dir = tmp_path / "continued"
+
+    records = train_run(course, run_dir, 7, init_from=source)
+
+    assert [record.rounds_trained for record in records] == [4, 5]
+    assert [record.seed for record in records] == [world_seed(7, 0), world_seed(7, 1)]
+    assert [rounds for rounds, _ in snapshots(run_dir)] == [4, 5]
+    stored = json.loads((run_dir / RUN_FILE).read_text())
+    assert (stored["init_from"], stored["init_rounds"]) == (str(source.resolve()), 3)
+    assert source.read_bytes() == source_bytes
+    # Resuming needs no --init-from and repeats nothing; another start is refused.
+    assert train_run(course, run_dir, 7) == []
+    with pytest.raises(RuntimeError):
+        train_run(course, run_dir, 7, init_from=tmp_path / "other.npz")
+
+
+def test_a_start_table_for_another_encoding_is_refused(
+    smoke_run: tuple[Path, list[ChunkRecord]], tmp_path: Path
+) -> None:
+    source_dir, _ = smoke_run
+    course = replace(curriculum(stage(rounds=1)), params={"encoding": "E2"})
+    with pytest.raises(ValueError):
+        train_run(course, tmp_path / "wrong", 0, init_from=source_dir / MODEL_FILE)

@@ -9,6 +9,9 @@
     # learning curves for every run under a directory (or for one run)
     uv run python -m training evaluate results/tabular_q/coins --jobs 4
 
+    # average each run's 3 newest snapshots into averaged/last3_round_<N>.npz
+    uv run python -m training average results/tabular_q/coins --last 3
+
 Run from the repository root. Running ``run`` again on the same ``--out``
 resumes unfinished runs.
 """
@@ -18,6 +21,7 @@ import math
 from collections.abc import Sequence
 from pathlib import Path
 
+from training.average import average_run
 from training.config import load_curriculum
 from training.driver import RUN_FILE, read_chunk_records, run_many
 from training.evaluate import evaluate_run, render_curve
@@ -40,6 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--jobs", type=int, default=0, help="parallel processes (default: one per run)"
     )
+    run.add_argument(
+        "--init-from",
+        type=Path,
+        default=None,
+        help="start every new run from a copy of this Q-table",
+    )
     run.add_argument("--no-progress", action="store_true")
 
     evaluate = commands.add_parser("evaluate", help="evaluate every snapshot")
@@ -48,6 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate.add_argument("--jobs", type=int, default=1)
     evaluate.add_argument("--no-progress", action="store_true")
+
+    average = commands.add_parser(
+        "average", help="average each run's newest snapshots into one table"
+    )
+    average.add_argument("path", type=Path, help="a run directory, or a parent of runs")
+    average.add_argument("--last", type=int, default=3, help="snapshots to average")
     return parser
 
 
@@ -80,20 +96,39 @@ def _command_run(args: argparse.Namespace) -> int:
     run_seeds = list(range(args.seed, args.seed + args.runs))
     jobs = args.jobs or len(run_seeds)
     run_dirs = run_many(
-        curriculum, args.out, run_seeds, jobs=jobs, progress=not args.no_progress
+        curriculum,
+        args.out,
+        run_seeds,
+        jobs=jobs,
+        init_from=args.init_from,
+        progress=not args.no_progress,
     )
     print(render_run_summary(list(run_dirs.values())))
     return 0
 
 
+def _find_runs(path: Path) -> list[Path]:
+    """``path`` itself if it is a run directory, else the runs directly below it."""
+    if (path / RUN_FILE).exists():
+        return [path]
+    if path.is_dir():
+        return sorted(p for p in path.iterdir() if (p / RUN_FILE).exists())
+    return []
+
+
+def _command_average(args: argparse.Namespace) -> int:
+    run_dirs = _find_runs(args.path)
+    if not run_dirs:
+        print(f"no training runs under {args.path}")
+        return 2
+    for run_dir in run_dirs:
+        print(average_run(run_dir, args.last))
+    return 0
+
+
 def _command_evaluate(args: argparse.Namespace) -> int:
     path: Path = args.path
-    if (path / RUN_FILE).exists():
-        run_dirs = [path]
-    elif path.is_dir():
-        run_dirs = sorted(p for p in path.iterdir() if (p / RUN_FILE).exists())
-    else:
-        run_dirs = []
+    run_dirs = _find_runs(path)
     if not run_dirs:
         print(f"no training runs under {path}")
         return 2
@@ -108,4 +143,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "run":
         return _command_run(args)
+    if args.command == "average":
+        return _command_average(args)
     return _command_evaluate(args)

@@ -40,6 +40,8 @@ def setup_training(self: AgentSelf) -> None:
         coin_potential=config.coin_potential,
         crate_aid=config.crate_aid,
         death_aid=config.death_aid,
+        bomb_aid=config.bomb_aid,
+        spot_potential=config.spot_potential,
     )
     self.trainer = Trainer(
         self.learner, rewards, epsilon=config.epsilon, stage=config.stage

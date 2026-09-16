@@ -51,9 +51,11 @@ MASK_VARIANTS: tuple[MaskVariant, ...] = get_args(MaskVariant)
 EncodingName = Literal["E1", "E2", "E3"]
 ENCODING_NAMES: tuple[EncodingName, ...] = get_args(EncodingName)
 
-# How ``act`` chooses: from the Q-table, or uniformly over the mask (the
-# safe-random control of plan step Q0, which ignores the table).
-Policy = Literal["learned", "random"]
+# How ``act`` chooses: from the Q-table, uniformly over the mask (the
+# safe-random control of plan step Q0), or by the fixed priority of
+# ``heuristic`` on the same features (the hand-tuned control of plan §5.9).
+# The two controls ignore the table for acting.
+Policy = Literal["learned", "random", "heuristic"]
 POLICIES: tuple[Policy, ...] = get_args(Policy)
 
 
@@ -97,11 +99,18 @@ def _is_str(value: object) -> bool:
     return isinstance(value, str)
 
 
+def _is_bool(value: object) -> bool:
+    return isinstance(value, bool)
+
+
 @dataclass(frozen=True)
 class Config:
     mask: MaskVariant = "best_tier"
     encoding: EncodingName = "E3"
     policy: Policy = "learned"
+    # Share one table row between board rotations and reflections (plan §5.4).
+    # False indexes the raw features: the ablation of plan step Q10.
+    symmetry: bool = True
     # Discount of the Q-learning target and of the shaping term (plan §5.6).
     gamma: float = 0.99
     # Step size ``max(alpha_min, (1 + visits) ** -alpha_omega)``: polynomial
@@ -120,6 +129,19 @@ class Config:
     # per crate destroyed, and one once per death (negative for a penalty).
     crate_aid: float = 0.0
     death_aid: float = 0.0
+    # Objective-changing aid paid on the BOMB action itself, per live crate the
+    # dropped bomb will destroy (only when the engine confirms the drop). Q7:
+    # without an immediate payoff for demolition the table cannot tell moving
+    # towards a bombing spot from waiting; a bomb for nothing earns nothing.
+    bomb_aid: float = 0.0
+    # Potential shaping ``c / (1 + d)`` on the distance to the best bombing spot
+    # (Q7), added to the coin potential; 0 turns it off. Use with ``bomb_aid``.
+    spot_potential: float = 0.0
+    # Share of training steps played by ``heuristic`` instead of the table
+    # (plan Q11, teacher-guided exploration). Q-learning is off-policy, so the
+    # table still learns the values of its own greedy policy, from data the
+    # better policy collected. 0 outside training regardless.
+    teacher_share: float = 0.0
     # Save the table after every ``save_every``-th round (training only).
     save_every: int = 1
     # Free-form label copied into every training record, e.g. the curriculum stage.
@@ -143,17 +165,22 @@ class Config:
         ):
             if not _is_number(value) or not 0.0 < value <= 1.0:
                 raise ValueError(f"{name} must be a number in (0, 1], got {value!r}")
-        if not _is_number(self.epsilon) or not 0.0 <= self.epsilon <= 1.0:
-            raise ValueError(
-                f"epsilon must be a number in [0, 1], got {self.epsilon!r}"
-            )
-        if not _is_number(self.coin_potential) or self.coin_potential < 0.0:
-            raise ValueError(
-                f"coin_potential must be a number >= 0, got {self.coin_potential!r}"
-            )
+        for name, value in (
+            ("epsilon", self.epsilon),
+            ("teacher_share", self.teacher_share),
+        ):
+            if not _is_number(value) or not 0.0 <= value <= 1.0:
+                raise ValueError(f"{name} must be a number in [0, 1], got {value!r}")
+        for name, value in (
+            ("coin_potential", self.coin_potential),
+            ("spot_potential", self.spot_potential),
+        ):
+            if not _is_number(value) or value < 0.0:
+                raise ValueError(f"{name} must be a number >= 0, got {value!r}")
         for name, value in (
             ("crate_aid", self.crate_aid),
             ("death_aid", self.death_aid),
+            ("bomb_aid", self.bomb_aid),
         ):
             if not _is_number(value):
                 raise ValueError(f"{name} must be a finite number, got {value!r}")
@@ -163,6 +190,8 @@ class Config:
             )
         if not _is_str(self.stage):
             raise ValueError(f"stage must be a string, got {self.stage!r}")
+        if not _is_bool(self.symmetry):
+            raise ValueError(f"symmetry must be true or false, got {self.symmetry!r}")
         if not _is_seed(self.seed):
             raise ValueError(f"seed must be an integer or null, got {self.seed!r}")
 

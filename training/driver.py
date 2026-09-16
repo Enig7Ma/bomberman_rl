@@ -15,6 +15,10 @@ A run trains one Q-table through the stages of a ``Curriculum``:
 - **Snapshots.** Every ``eval_every`` rounds the table is copied to
   ``snapshots/round_NNNNNN.npz`` for ``training.evaluate``, and the ``frozen``
   opponent is switched to that snapshot.
+- **Continuing a table.** ``init_from`` starts a run from another run's table:
+  it is copied into the run directory, its ``rounds_trained`` carries on, and
+  the chunk plan starts at the curriculum's first chunk. ``run.json`` records
+  the source table, which is never written to.
 - **Seeds.** World seeds come from a range no evaluation uses:
   ``100000 + 10000 * run_seed + chunk index``. The chunk plan depends on
   ``run_seed`` alone. Opponents seed themselves from entropy, so two runs with
@@ -126,7 +130,7 @@ def plan_chunks(curriculum: Curriculum, run_seed: int) -> list[Chunk]:
                     stage=stage.name,
                     source=source.name,
                     replay=replay,
-                    scenario=source.scenario,
+                    scenario=lineup.scenario or source.scenario,
                     opponents=lineup.opponents,
                     epsilon=stage.epsilon_at(done),
                     seed=world_seed(run_seed, index),
@@ -189,25 +193,45 @@ def _git_commit() -> str | None:
     return f"{head}-dirty" if dirty else head
 
 
-def _start_or_resume(run_dir: Path, curriculum: Curriculum, run_seed: int) -> None:
+def _start_or_resume(
+    run_dir: Path, curriculum: Curriculum, run_seed: int, init_from: Path | None
+) -> int:
+    """Create or check ``run.json``; returns the rounds the start table had."""
     run_file = run_dir / RUN_FILE
+    wanted_init = str(init_from.resolve()) if init_from is not None else None
     if run_file.exists():
         stored: Any = json.loads(run_file.read_text(encoding="utf-8"))
         if stored["run_seed"] != run_seed:
             raise RuntimeError(
                 f"{run_dir} is run seed {stored['run_seed']}, not {run_seed}"
             )
-        if stored["curriculum"] != json.loads(json.dumps(asdict(curriculum))):
+        # Compared after parsing, so fields added later with defaults still match.
+        if asdict(parse_curriculum(stored["curriculum"])) != asdict(curriculum):
             raise RuntimeError(f"{run_dir} was started with a different curriculum")
-        return
+        if wanted_init is not None and stored.get("init_from") != wanted_init:
+            started_from = stored.get("init_from")
+            raise RuntimeError(
+                f"{run_dir} was started from {started_from}, not {wanted_init}"
+            )
+        return int(stored.get("init_rounds", 0))
+
     run_dir.mkdir(parents=True, exist_ok=True)
+    init_rounds = 0
+    if init_from is not None:
+        encoding = ENCODINGS[curriculum.agent_config().encoding]
+        source = QTable.load(init_from, encoding)  # refuses another encoding
+        init_rounds = int(source.meta.get("rounds_trained", 0))
+        _copy_atomic(init_from, run_dir / MODEL_FILE)
     document = {
         "run_seed": run_seed,
         "git_commit": _git_commit(),
         "started": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "init_from": wanted_init,
+        "init_rounds": init_rounds,
         "curriculum": asdict(curriculum),
     }
     run_file.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return init_rounds
 
 
 def _rounds_trained(model: Path, curriculum: Curriculum) -> int:
@@ -229,22 +253,27 @@ def train_run(
     run_dir: Path,
     run_seed: int,
     *,
+    init_from: Path | None = None,
     progress: bool = False,
 ) -> list[ChunkRecord]:
-    """Play every chunk the table has not trained yet; returns their records."""
+    """Play every chunk the table has not trained yet; returns their records.
+
+    ``init_from`` (only read when the run directory is new) starts from a copy
+    of another table instead of an empty one.
+    """
     run_dir = run_dir.resolve()
-    _start_or_resume(run_dir, curriculum, run_seed)
+    init_rounds = _start_or_resume(run_dir, curriculum, run_seed, init_from)
     model = run_dir / MODEL_FILE
     encoding = curriculum.agent_config().encoding
     chunks = plan_chunks(curriculum, run_seed)
 
-    trained = _rounds_trained(model, curriculum)
-    if trained % curriculum.chunk_rounds:
+    done = _rounds_trained(model, curriculum) - init_rounds
+    if done < 0 or done % curriculum.chunk_rounds:
         raise RuntimeError(
-            f"{model} has trained {trained} rounds, not a multiple of the chunk "
-            f"size {curriculum.chunk_rounds}"
+            f"{model} has trained {done} rounds in this run, not a multiple of the "
+            f"chunk size {curriculum.chunk_rounds}"
         )
-    remaining = chunks[trained // curriculum.chunk_rounds :]
+    remaining = chunks[done // curriculum.chunk_rounds :]
 
     frozen: str | None = None
     if any(FROZEN in chunk.opponents for chunk in remaining):
@@ -355,8 +384,10 @@ def read_chunk_records(run_dir: Path) -> list[ChunkRecord]:
     return records
 
 
-def _train_worker(curriculum: Curriculum, run_dir: Path, run_seed: int) -> None:
-    train_run(curriculum, run_dir, run_seed)
+def _train_worker(
+    curriculum: Curriculum, run_dir: Path, run_seed: int, init_from: Path | None
+) -> None:
+    train_run(curriculum, run_dir, run_seed, init_from=init_from)
 
 
 def run_many(
@@ -365,6 +396,7 @@ def run_many(
     run_seeds: Sequence[int],
     *,
     jobs: int = 1,
+    init_from: Path | None = None,
     progress: bool = False,
 ) -> dict[int, Path]:
     """Independent runs ``out_dir/run_<seed>``, ``jobs`` at a time."""
@@ -373,12 +405,14 @@ def run_many(
     run_dirs = {seed: (out_dir / f"run_{seed}").resolve() for seed in run_seeds}
     if jobs == 1 or len(run_dirs) == 1:
         for seed, run_dir in run_dirs.items():
-            train_run(curriculum, run_dir, seed, progress=progress)
+            train_run(curriculum, run_dir, seed, init_from=init_from, progress=progress)
         return run_dirs
     import multiprocessing as mp
 
     context = mp.get_context("spawn")
-    work = [(curriculum, run_dir, seed) for seed, run_dir in run_dirs.items()]
+    work = [
+        (curriculum, run_dir, seed, init_from) for seed, run_dir in run_dirs.items()
+    ]
     with context.Pool(processes=min(jobs, len(work))) as pool:
         pool.starmap(_train_worker, work)
     return run_dirs

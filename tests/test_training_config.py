@@ -39,6 +39,7 @@ VALID: dict[str, Any] = {
             "lineups": [
                 {"opponents": ["peaceful_agent"], "weight": 1},
                 {"opponents": ["frozen", "rule_based_agent"], "weight": 2.5},
+                {"opponents": [], "scenario": "classic"},
             ],
             "rounds": 6,
             "epsilon_start": 0.2,
@@ -70,6 +71,8 @@ def test_a_valid_curriculum_parses() -> None:
     coins, crates = curriculum.stages
     assert coins.lineups == (Lineup((), 1.0),)
     assert crates.lineups[1] == Lineup(("frozen", "rule_based_agent"), 2.5)
+    assert crates.lineups[2] == Lineup((), 1.0, "classic")
+    assert coins.lineups[0].scenario is None
     assert crates.decay_share == 0.6  # default
     assert curriculum.evaluations[0].preset == "coin-heaven-solo"
 
@@ -117,6 +120,7 @@ def test_epsilon_decays_over_the_decay_share() -> None:
         (["stages", 1, "lineups", 0, "opponents"], ["tabular_q_agent"]),
         (["stages", 1, "lineups", 0, "opponents"], ["tabular_frozen_s0"]),
         (["stages", 1, "lineups", 0, "opponents"], ["peaceful_agent"] * 4),
+        (["stages", 1, "lineups", 2, "scenario"], "moon"),
     ],
 )
 def test_invalid_curricula_are_rejected(path: list[str | int], value: object) -> None:

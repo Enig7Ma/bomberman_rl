@@ -11,12 +11,16 @@ A transition's reward has three parts:
   ``KILLED_SELF`` and ``GOT_KILLED``, which still counts as one death. Bomb
   drops, waiting and invalid moves are never rewarded: bombing for reward is an
   easy exploit, waiting is often right, and invalid moves are mostly lost races
-  for a tile.
+  for a tile. The one exception, ``bomb_aid`` (added in Q7), is conditional: it
+  is paid per live crate a confirmed bomb will destroy, so a useless bomb still
+  earns nothing.
 - **shaping**: ``gamma * phi(s') - phi(s)`` with the coin potential
   ``phi = coin_potential / (1 + d)``, ``d`` the walking distance to the nearest
   visible coin and ``phi = 0`` when there is none or ``s'`` is terminal. As a
   function of the full observation it is a true potential of the game, so it
-  does not change which policies are optimal (Ng et al., 1999).
+  does not change which policies are optimal (Ng et al., 1999). A second
+  potential of the same form on the distance to the best bombing spot
+  (``spot_potential``, added in Q7) is off by default.
 """
 
 from collections.abc import Sequence
@@ -32,6 +36,8 @@ class Rewards:
     coin_potential: float = 0.0
     crate_aid: float = 0.0
     death_aid: float = 0.0
+    bomb_aid: float = 0.0
+    spot_potential: float = 0.0
 
     def base(self, events: Sequence[str]) -> float:
         return float(
@@ -45,10 +51,26 @@ class Rewards:
             aid += self.death_aid
         return aid
 
-    def potential(self, coin_distance: int | None) -> float:
-        if coin_distance is None:
-            return 0.0
-        return self.coin_potential / (1 + coin_distance)
+    def bomb(self, crates: int) -> float:
+        """The aid for a confirmed bomb drop that will destroy ``crates``."""
+        return self.bomb_aid * crates
+
+    def potential(
+        self, coin_distance: int | None, crate_distance: int | None = None
+    ) -> float:
+        """Coin potential plus bombing-spot potential, both ``c / (1 + d)``.
+
+        The spot potential drops when a bomb books its spot's crates (the next
+        spot is farther away), a shaping penalty on ``BOMB`` of about
+        ``-spot_potential``. It is meant to be used with ``bomb_aid``, which
+        outweighs that penalty for a bomb that destroys crates.
+        """
+        phi = 0.0
+        if coin_distance is not None:
+            phi += self.coin_potential / (1 + coin_distance)
+        if crate_distance is not None:
+            phi += self.spot_potential / (1 + crate_distance)
+        return phi
 
     def shaping(self, phi: float, phi_next: float) -> float:
         return self.gamma * phi_next - phi

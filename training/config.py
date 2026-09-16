@@ -22,7 +22,8 @@ the copy a run directory keeps (``dataclasses.asdict``) loads back unchanged::
   which sets them per chunk.
 - ``lineups`` are sampled per chunk by ``weight``. An opponent is an agent
   directory under ``agent_code/`` or ``"frozen"``: a copy of the learner playing
-  its newest snapshot (``training.frozen``).
+  its newest snapshot (``training.frozen``). A lineup may name its own
+  ``scenario``, which mixes scenarios within one stage.
 - ``epsilon`` falls linearly from ``epsilon_start`` to ``epsilon_end`` over the
   first ``decay_share`` of the stage's rounds.
 - ``replay_share`` of a stage's chunks replay a random earlier stage's scenario
@@ -59,6 +60,8 @@ class CurriculumError(ValueError):
 class Lineup:
     opponents: tuple[str, ...]
     weight: float = 1.0
+    # Plays this lineup in another scenario than the stage's.
+    scenario: str | None = None
 
 
 @dataclass(frozen=True)
@@ -151,6 +154,15 @@ def _share(raw: object, where: str, *, below_one: bool = False) -> float:
     return value
 
 
+def _scenario(raw: object, where: str) -> str:
+    scenario = _str(raw, where)
+    if scenario not in settings.SCENARIOS:
+        raise CurriculumError(
+            f"{where}: {scenario!r} is not one of {sorted(settings.SCENARIOS)}"
+        )
+    return scenario
+
+
 def _opponent(raw: object, where: str) -> str:
     name = _str(raw, where)
     if name == FROZEN:
@@ -169,7 +181,7 @@ def _opponent(raw: object, where: str) -> str:
 
 
 def _lineup(raw: object, where: str) -> Lineup:
-    obj = _object(raw, where, {"opponents"}, {"weight"})
+    obj = _object(raw, where, {"opponents"}, {"weight", "scenario"})
     opponents = tuple(
         _opponent(name, f"{where}.opponents[{i}]")
         for i, name in enumerate(_list(obj["opponents"], f"{where}.opponents"))
@@ -179,7 +191,10 @@ def _lineup(raw: object, where: str) -> Lineup:
     weight = obj.get("weight", 1.0)
     if not isinstance(weight, int | float) or isinstance(weight, bool) or weight <= 0:
         raise CurriculumError(f"{where}.weight: expected a number > 0")
-    return Lineup(opponents, float(weight))
+    scenario: object = obj.get("scenario")
+    if scenario is None:
+        return Lineup(opponents, float(weight))
+    return Lineup(opponents, float(weight), _scenario(scenario, f"{where}.scenario"))
 
 
 def _stage(raw: object, where: str, chunk_rounds: int, first: bool) -> Stage:
@@ -189,11 +204,7 @@ def _stage(raw: object, where: str, chunk_rounds: int, first: bool) -> Stage:
         {"name", "scenario", "lineups", "rounds", "epsilon_start", "epsilon_end"},
         {"decay_share", "replay_share"},
     )
-    scenario = _str(obj["scenario"], f"{where}.scenario")
-    if scenario not in settings.SCENARIOS:
-        raise CurriculumError(
-            f"{where}.scenario: {scenario!r} is not one of {sorted(settings.SCENARIOS)}"
-        )
+    scenario = _scenario(obj["scenario"], f"{where}.scenario")
     lineups = tuple(
         _lineup(item, f"{where}.lineups[{i}]")
         for i, item in enumerate(_list(obj["lineups"], f"{where}.lineups"))

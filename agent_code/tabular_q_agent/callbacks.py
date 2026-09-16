@@ -15,8 +15,10 @@ in ``TABULAR_Q_AGENT_MODEL``. In training mode (``train.py``) the agent also
 explores with probability ``epsilon`` and hands every step to a
 ``transitions.Trainer``, which turns the framework's callbacks into Q-updates.
 Outside training it never explores and never writes. ``policy="random"``
-keeps the safe-random control of step Q0: uniform over the mask, table
-ignored for acting (it still learns off-policy when training).
+keeps the safe-random control of step Q0 and ``policy="heuristic"`` the
+hand-ordered control of §5.9: both ignore the table for acting (it still
+learns off-policy when training). ``teacher_share`` mixes heuristic actions
+into training only, as the plan's teacher-guided exploration (Q11).
 
 The framework imports this module as ``agent_code.tabular_q_agent.callbacks``
 and calls each function with a ``types.SimpleNamespace`` as ``self``. It only
@@ -40,9 +42,10 @@ from numpy.typing import NDArray
 from .config import MODEL_ENV_VAR, Config, model_path
 from .core.world_model import Observation
 from .features import ENCODINGS, Encoding, Extractor
+from .heuristic import heuristic_action
 from .learner import Learner, Selection
 from .qtable import ACTION_COLUMN, QTable
-from .symmetry import canonical, from_canonical, to_canonical
+from .symmetry import IDENTITY, canonical, from_canonical, to_canonical
 from .transitions import Trainer
 
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
@@ -174,13 +177,35 @@ def act(self: AgentSelf, game_state: GameState) -> Action:
             f"step {obs.step}: no known escape, playing for time with"
             f" {list(extracted.allowed)}"
         )
-    state, symmetry = canonical(extracted.features, self.encoding)
+    if self.config.symmetry:
+        state, symmetry = canonical(extracted.features, self.encoding)
+    else:
+        state, symmetry = self.encoding.encode(extracted.features), IDENTITY
     allowed = [ACTION_COLUMN[to_canonical(a, symmetry)] for a in extracted.allowed]
     if trainer is not None:
-        trainer.observe(obs.round, obs.step, state, allowed, extracted.coin_distance)
+        trainer.observe(
+            obs.round,
+            obs.step,
+            state,
+            allowed,
+            extracted.coin_distance,
+            bomb_hits=extracted.bomb_hits,
+            crate_distance=extracted.crate_distance,
+        )
 
+    teaching = (
+        trainer is not None
+        and self.config.teacher_share > 0.0
+        and self.rng.random() < self.config.teacher_share
+    )
     if self.config.policy == "random":
         selection = Selection(self.rng.choice(allowed), explored=False, unseen=False)
+    elif self.config.policy == "heuristic" or teaching:
+        choice = heuristic_action(extracted.features, extracted.allowed, self.rng)
+        column = ACTION_COLUMN[to_canonical(choice, symmetry)]
+        # A teacher step is a deviation from the table's own policy, so the
+        # metrics count it as exploration, like an epsilon step.
+        selection = Selection(column, explored=teaching, unseen=False)
     else:
         epsilon = self.config.epsilon if trainer is not None else 0.0
         selection = self.learner.select(state, allowed, epsilon)

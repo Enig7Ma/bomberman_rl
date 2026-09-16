@@ -54,6 +54,8 @@ class Pending:
     action: int
     played: str
     phi: float
+    # Live crates a bomb dropped by this action would destroy (``bomb_aid``).
+    bomb_hits: int = 0
     reward: float = 0.0
     # The events ``game_events_occurred`` reported, or None if it never came.
     received: tuple[str, ...] | None = None
@@ -66,6 +68,7 @@ class _Observed:
     state: int
     allowed: tuple[int, ...]
     phi: float
+    bomb_hits: int
 
 
 class Trainer:
@@ -116,13 +119,15 @@ class Trainer:
         state: int,
         allowed: Sequence[int],
         coin_distance: int | None,
+        bomb_hits: int = 0,
+        crate_distance: int | None = None,
     ) -> None:
         """A new observation; completes the pending transition as survived."""
         if round_number != self.round:
             raise BookkeepingError(
                 f"observation of round {round_number} in round {self.round}"
             )
-        phi = self.rewards.potential(coin_distance)
+        phi = self.rewards.potential(coin_distance, crate_distance)
         pending = self.pending
         if pending is not None:
             if pending.received is None:
@@ -132,7 +137,9 @@ class Trainer:
             shaping = self.rewards.shaping(pending.phi, phi)
             self._update(pending, pending.reward + shaping, state, allowed)
             self.pending = None
-        self._observed = _Observed(round_number, step, state, tuple(allowed), phi)
+        self._observed = _Observed(
+            round_number, step, state, tuple(allowed), phi, bomb_hits
+        )
 
     def chose(self, selection: Selection, played: str) -> None:
         """The action ``act`` returns for the last observation."""
@@ -147,6 +154,7 @@ class Trainer:
             selection.action,
             played,
             observed.phi,
+            bomb_hits=observed.bomb_hits,
         )
         self._steps += 1
         self._forced += len(observed.allowed) == 1
@@ -174,7 +182,7 @@ class Trainer:
             raise BookkeepingError(f"step {step}: events reported twice")
         received = tuple(events)  # the engine keeps mutating its list
         pending.received = received
-        pending.reward += self._count(received)
+        pending.reward += self._count(pending, received)
 
     def finish(self, played: str, events: Sequence[str]) -> RoundRecord:
         """``end_of_round``: complete the last transition as terminal."""
@@ -189,7 +197,7 @@ class Trainer:
             raise BookkeepingError(
                 f"end_of_round changed events already reported: {seen} -> {delivered}"
             )
-        pending.reward += self._count(delivered[len(seen) :])
+        pending.reward += self._count(pending, delivered[len(seen) :])
         shaping = self.rewards.shaping(pending.phi, 0.0)
         self._update(pending, pending.reward + shaping, None, ())
         self.pending = None
@@ -237,11 +245,15 @@ class Trainer:
             raise BookkeepingError(f"{callback} without a pending action")
         return self.pending
 
-    def _count(self, events: Sequence[str]) -> float:
+    def _count(self, pending: Pending, events: Sequence[str]) -> float:
+        """Reward for newly delivered events; each event is delivered once."""
         self._events.update(events)
         base = self.rewards.base(events)
         self._base += base
-        return base + self.rewards.aids(events)
+        aid = self.rewards.aids(events)
+        if e.BOMB_DROPPED in events:
+            aid += self.rewards.bomb(pending.bomb_hits)
+        return base + aid
 
     def _update(
         self,
