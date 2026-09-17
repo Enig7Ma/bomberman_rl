@@ -31,7 +31,7 @@ engine states.
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Final
+from typing import Any, Final, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -144,7 +144,15 @@ def from_canonical(action: str, symmetry: Symmetry) -> str:
     return inverse(symmetry).action(action)
 
 
-def transform_grid[T: np.generic](grid: NDArray[T], symmetry: Symmetry) -> NDArray[T]:
+# Spelled with TypeVar rather than the PEP 695 type parameters UP047 asks for:
+# that syntax is a SyntaxError before Python 3.12, and the submitted agent has
+# to import on whatever interpreter the tournament image ships.
+_Cell = TypeVar("_Cell", bound=np.generic)
+
+
+def transform_grid(  # noqa: UP047
+    grid: NDArray[_Cell], symmetry: Symmetry
+) -> NDArray[_Cell]:
     """A board-shaped array with every cell moved to its image."""
     width, height = grid.shape
     if width != height:
