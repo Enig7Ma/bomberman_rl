@@ -101,6 +101,24 @@ def test_d3_invalid_config(name: str, value: object) -> None:
         Config.from_env({ENV_VAR: json.dumps({name: value})})
 
 
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("stage", -1),
+        ("stage", 256),
+        ("stage", True),
+        ("stage_transitions", 0),
+        ("save_every", 0),
+        ("replay_save_every", 0),
+        ("probe_every", 0),
+        ("probe_path", 3),
+    ],
+)
+def test_d4_invalid_config(name: str, value: object) -> None:
+    with pytest.raises(ValueError):
+        Config.from_env({ENV_VAR: json.dumps({name: value})})
+
+
 @pytest.mark.parametrize("seed", [None, 0, 123])
 def test_init_seed(seed: int | None) -> None:
     assert Config.from_env({ENV_VAR: json.dumps({"init_seed": seed})}).init_seed == seed

@@ -81,6 +81,12 @@ class Config:
     epsilon_start: float = 0.3
     epsilon_end: float = 0.05
     epsilon_fraction: float = 0.6
+    stage: int = 0
+    stage_transitions: int = 50_000
+    save_every: int = 1
+    replay_save_every: int = 50
+    probe_every: int = 10_000
+    probe_path: str | None = None
 
     def __post_init__(self) -> None:
         if self.mask not in MASK_VARIANTS:
@@ -104,6 +110,10 @@ class Config:
             "train_every",
             "target_every",
             "warmup",
+            "stage_transitions",
+            "save_every",
+            "replay_save_every",
+            "probe_every",
         ):
             value = getattr(self, name)
             minimum = 0 if name == "warmup" else 1
@@ -133,6 +143,10 @@ class Config:
             )
         if not 0 <= self.epsilon_end <= self.epsilon_start <= 1:
             raise ValueError("expected 0 <= epsilon_end <= epsilon_start <= 1")
+        if type(self.stage) is not int or not 0 <= self.stage <= 255:
+            raise ValueError("stage must be an integer in 0..255")
+        if self.probe_path is not None and type(self.probe_path) is not str:
+            raise ValueError("probe_path must be a path string or null")
         if not 0 < self.epsilon_fraction <= 1:
             raise ValueError("epsilon_fraction must be in (0,1]")
 

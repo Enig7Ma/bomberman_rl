@@ -335,3 +335,146 @@ check/format passed, Pyright (explicit venv interpreter) 0 errors/warnings,
 and `git diff --check` passed. No new Ruff/Pyright exclusions or dependencies.
 D4 game training callbacks, full-state checkpoints and curriculum are not
 implemented. The only learning performed here was on toy/test/benchmark data.
+
+## D4 — training callbacks, persistence and diagnostics, 2026-09-17
+
+Started from clean `feature/ivan-dqn`, base `0a2996f` (829 tests). Read local
+plan D4/sections 5.5–5.8, Bookkeeper, D3 learner/replay, tabular Q4 tests and
+`training/world.py`. No project instructions were found. D5/curriculum and
+learner speed optimisation were not started.
+
+### Action-to-update path
+
+Training `act` extracts and canonicalises E3, then passes the encoded state
+and canonical allowed actions to the shared **unchanged Bookkeeper**. Observing
+the next state completes the previous transition. The trainer inserts its
+reward components into replay, increments transitions/stage position and, from
+5000 transitions onward, calls learner once every four transitions. Learner
+alone increments updates and synchronises target. The new action is selected
+epsilon-greedily from allowed actions using the current online network and
+mapped back to game coordinates. Exploration/forced-action counts are real.
+
+`game_events_occurred` only delivers events. `end_of_round` completes the sole
+terminal transition, including a survivor's final suffix or delayed posthumous
+events. Successor state/mask belong to their own canonical transformation;
+terminal successors/potentials are zero. `train=False` keeps NumPy inference,
+imports no Torch and writes no model/checkpoint/replay files. Training uses one
+Torch CPU thread. Shared vendored modules remain byte-identical.
+
+### Save and restore contract
+
+- `q_net.npz`: online export for play, with training counters/config metadata.
+- `checkpoint.pt`: online, target, Adam, config, transitions, updates, rounds,
+  stage-relative epsilon position, feature/action Python RNGs, private NumPy
+  replay RNG, private Torch generator state and probe churn history. Loading
+  always uses **weights_only=True**. Global RNGs shared by opponents are not
+  restored or reseeded by the agent.
+- `replay.npz`: only filled physical rows, capacity, dimension, length and
+  next-write index; exact dtypes, values, chronology and IDs are validated.
+- Default paths stay repository/agent-relative regardless of framework cwd;
+  checkpoint/replay live beside the configured NumPy model.
+- A checkpoint takes precedence during training. Matching config/schema and
+  consistent counters are required. A new run with changed parameters should
+  start from `q_net.npz` in a fresh directory. NumPy-only warm-start copies
+  weights to both networks but resets Adam, replay, epsilon and counters.
+  With no model/checkpoint, initialisation uses the Torch private seed.
+- Files carry a shared run ID and replay transition count. Consistent full
+  snapshots resume exactly. **Older replay is allowed with an explicit warning
+  and `stale-replay-resume`/`exact_history=false` in metrics and metadata**:
+  weights/Adam/counters/RNG remain at the checkpoint, but recent experience is
+  missing. This is not exact continuation; the degraded-history flag survives
+  subsequent saves. Newer, unrelated, missing, malformed or orphan replay is
+  rejected. No silent fallback to random training occurs on a broken checkpoint.
+- Every file uses same-directory temporary write, flush/fsync and replace.
+  Replay is written before checkpoint, then the NumPy export. This is **not a
+  three-file atomic transaction**: an interruption can leave a newer replay
+  than checkpoint (rejected), or a stale NumPy export (training uses checkpoint).
+- `trainer.save(full=True)` is the round-boundary full-save hook for future
+  chunking. Saving with a pending transition raises. Automatic checkpoint/export
+  saves occur every `save_every=1` round; replay at first save and every
+  `replay_save_every=50` rounds. A replay-due boundary also writes checkpoint
+  and export even if their separate interval is not due.
+
+Metrics include per-round game results/events, total transitions/updates,
+updates this round, epsilon, buffer fill, loss, absolute TD error, pre-clipping
+gradient norm, exploration/forced fraction, wall time and save costs. With no
+updates, learning means are null rather than invented zeros. `probe.py`
+supports schema-checked supplied states/masks, masked max-Q mean/max, action
+histogram and churn every 10,000 updates. Nonfinite Q or **|Q| > 50** aborts;
+current decision states and newly updated observed states are also checked.
+The fixed game probe set is **not collected yet (D6)**. Missing probes are
+explicitly marked; this smoke is not a full-state D-S7 validation.
+
+### Engine and persistence checks
+
+All required engine cases passed:
+
+- WAIT survivor at cap: **400 transitions, one terminal**, WAITED=400 and
+  SURVIVED_ROUND=1. Before warm-up, weights remain exactly unchanged.
+- BOMB then WAIT suicide: **5 transitions**, last terminal reward exactly -1
+  with death_aid=-1, despite both death events.
+- Hand-set posthumous board: learner dies at step 2, round ends at step 5,
+  death transition base reward **5**.
+- **8 classic rounds vs three rule-based agents**: per-round sum of replay
+  base equals engine score, transition count equals agent actions, no pending
+  transition, one terminal. Stored next masks match canonical encoded masks.
+- **3+2 vs continuous 5 rounds**: exact equality of online/target weights,
+  Adam, replay including ring position, counters, epsilon and private RNGs.
+  The test restores the world's RNG and round number at the split, and uses
+  an explicitly deterministic peaceful opponent keyed by round/step, with no
+  entropy setup or hidden opponent state. Replay capacity 600 forces wrapping;
+  warm-up 8 and target interval 37 exercise actual learning and unsynced target.
+- Additional tests cover stale replay, corruption/config/schema/run mismatch,
+  missing/newer replay, atomic failure, weights-only loading, cwd independence,
+  NumPy warm-start, probe statistics/history and mid-round save rejection.
+  Isolated play verifies no Torch and unchanged model bytes/mtime.
+
+### Stock-framework technical smoke and save costs
+
+Reproduce with a fresh directory:
+
+```powershell
+.venv/Scripts/python.exe -m docs.experiments.dqn_d4_smoke --output results/dqn/d4_smoke_20260917
+```
+
+The tracked script invokes `main.py play --no-gui --agents dqn_agent --train 1
+--scenario coin-heaven --n-rounds 50 --seed 1700`, with model/metrics paths in
+the output directory. Agent and initialisation seeds are 0, normal D3/D4
+defaults; no curriculum or training driver is involved.
+
+Result: **50 rounds, 11,631 transitions, 1,658 updates, 35.18 s**. Updates start
+in round **13** (51 updates by its end), after warm-up; rounds 1–12 have none.
+Online weights differ from the separately recorded fresh initialisation. Final
+checkpoint/replay agree, and loading them with the final code reports
+`exact-resume 11631 1658 11631`. There were **0 deaths/suicides and 0 invalid
+actions**. Total base score was 1988. This is a plumbing check, **not D6 or an
+evaluation of playing strength**. Stock framework still loses posthumous kills
+in general; the engine tests use TrainingWorld to retain them.
+
+Five atomic saves per artifact, measured after the smoke:
+
+| Artifact | Mean save time | File bytes |
+|---|---:|---:|
+| q_net.npz | 15.48 ms | 81,364 |
+| checkpoint.pt | 10.36 ms | 366,726 |
+| Replay, actual 11,631 rows | 70.40 ms | 108,050 |
+| Replay, 100,000 rows | 486.10 ms | 912,110 |
+
+The 100k buffer occupies **29,100,000 raw bytes**. Its save measurement repeats
+actual coin-heaven rows with unique IDs; this measures capacity/I/O, not 100k
+trained transitions or compression on more varied later-stage data. Keep
+**replay_save_every=50**: the measured full-buffer write amortises to about
+9.72 ms/round instead of 486 ms/round. Tradeoff: interruption may lose up to
+49 rounds of replay recency. Use full-save at a normal stopping/chunk boundary
+for exact resume. Per-file saves are measured including flush/fsync/replace.
+
+Raw files, initial untrained weights, framework output, metrics, timing samples
+and save-size fixtures are ignored under `results/dqn/d4_smoke_20260917/`;
+no training checkpoint/replay is added to Git.
+
+Validation: **188 related tests passed**; full pytest **856 passed**; Ruff
+check/format passed; Pyright 0 errors/warnings; `git diff --check` passed.
+No functional D4 criterion remains unmet. Remaining boundaries: fixed probes
+belong to D6, world/opponent RNG control belongs to the experiment harness,
+stale replay is degraded recovery, multi-file saves are not transactional, and
+D5 curriculum/driver work and long training remain unstarted.

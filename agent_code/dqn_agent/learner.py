@@ -44,6 +44,7 @@ class QNet(nn.Module):
             generator.seed()
         else:
             generator.manual_seed(seed)
+        self.generator = generator
         self.W0 = nn.Parameter(
             torch.empty((128, input_dim), dtype=torch.float32, device="cpu")
         )
@@ -239,4 +240,37 @@ class Learner:
                 "updates": self.updates,
                 "stage": "D3-toy",
             },
+        )
+
+    def training_state(self) -> dict[str, Any]:
+        return {
+            "online": self.online.state_dict(),
+            "target": self.target.state_dict(),
+            "adam": self.optimizer.state_dict(),
+            "updates": self.updates,
+            "action_rng": self.action_rng.getstate(),
+            "replay_rng": self.replay_rng.bit_generator.state,
+            "torch_rng": self.online.generator.get_state(),
+            "target_torch_rng": self.target.generator.get_state(),
+        }
+
+    def restore_training_state(self, state: dict[str, Any]) -> None:
+        updates = state["updates"]
+        if type(updates) is not int or updates < 0:
+            raise ValueError("invalid update counter")
+        self.online.load_state_dict(state["online"], strict=True)
+        self.target.load_state_dict(state["target"], strict=True)
+        if any(
+            not torch.isfinite(p).all()
+            for net in (self.online, self.target)
+            for p in net.parameters()
+        ):
+            raise ValueError("nonfinite checkpoint weights")
+        self.optimizer.load_state_dict(state["adam"])
+        self._updates = updates
+        self.action_rng.setstate(state["action_rng"])
+        self.replay_rng.bit_generator.state = state["replay_rng"]
+        self.online.generator.set_state(state["torch_rng"])
+        self.target.generator.set_state(
+            state.get("target_torch_rng", state["torch_rng"])
         )

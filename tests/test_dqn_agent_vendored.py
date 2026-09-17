@@ -71,10 +71,11 @@ print(json.dumps({'action': action, 'loaded': agent.q_function is not None,
 """
     env = {k: v for k, v in os.environ.items() if not k.startswith("DQN_AGENT_")}
     env["PYTHONPATH"] = str(tmp_path)
+    path = tmp_path / "random.npz"
     if loaded:
-        path = tmp_path / "random.npz"
         QNetwork.random(OneHotE3(), 0).save(path)
         env["DQN_AGENT_MODEL"] = str(path)
+    before = (path.read_bytes(), path.stat().st_mtime_ns) if loaded else None
     finished = subprocess.run(
         [sys.executable, "-B", "-c", script],
         cwd=tmp_path,
@@ -83,6 +84,10 @@ print(json.dumps({'action': action, 'loaded': agent.q_function is not None,
         capture_output=True,
         check=True,
     )
+    assert not (tmp_path / "checkpoint.pt").exists()
+    assert not (tmp_path / "replay.npz").exists()
+    if loaded:
+        assert (path.read_bytes(), path.stat().st_mtime_ns) == before
     result = json.loads(finished.stdout.splitlines()[-1])
     assert result["action"] in {"RIGHT", "DOWN", "WAIT", "BOMB"}
     assert result["loaded"] is loaded

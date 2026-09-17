@@ -13,11 +13,17 @@ from typing import Any, Literal, Protocol, cast
 from .config import Config, model_path
 from .core.world_model import ACTIONS, Observation
 from .encoder import ENCODERS, Encoder
-from .features import ENCODINGS, Encoding, Extractor
+from .features import ENCODINGS, Encoding, Extracted, Extractor
 from .network import QFunction, QNetwork, masked_greedy
-from .symmetry import canonical, from_canonical, to_canonical
+from .symmetry import Symmetry, canonical, from_canonical, to_canonical
 
 Action = Literal["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
+
+
+class TrainingPolicy(Protocol):
+    def select(
+        self, obs: Observation, extracted: Extracted, index: int, symmetry: Symmetry
+    ) -> str: ...
 
 
 class AgentSelf(Protocol):
@@ -31,6 +37,7 @@ class AgentSelf(Protocol):
     round: int
     encoder: Encoder
     q_function: QFunction | None
+    trainer: TrainingPolicy | None
 
 
 def setup(self: AgentSelf) -> None:
@@ -42,9 +49,12 @@ def setup(self: AgentSelf) -> None:
     self.model_file, explicit = model_path()
     self.q_function = _load_network(self, explicit)
     self.round = 0
+    self.trainer = None
 
 
 def _load_network(self: AgentSelf, explicit: bool) -> QNetwork | None:
+    if self.train and (self.model_file.parent / "checkpoint.pt").exists():
+        return None
     if not self.model_file.exists():
         if explicit and not self.train:
             raise FileNotFoundError(self.model_file)
@@ -73,6 +83,9 @@ def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
         self.round = obs.round
         self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
     extracted = self.extractor.extract(obs)
+    if self.train and self.trainer is not None:
+        index, symmetry = canonical(extracted.features, self.encoding)
+        return cast(Action, self.trainer.select(obs, extracted, index, symmetry))
     if self.config.policy == "random" or self.q_function is None:
         return cast(Action, self.rng.choice(extracted.allowed))
     index, symmetry = canonical(extracted.features, self.encoding)

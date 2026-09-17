@@ -7,7 +7,7 @@ normalised to zeros (including their potential). No learning or persistence.
 
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -224,3 +224,44 @@ class ReplayBuffer:
             transition_id=cast(NDArray[np.uint64], rows["transition_id"].copy()),
             r=reward.astype(np.float32),
         )
+
+    def snapshot(self) -> dict[str, Any]:
+        """Physical ring order, filled portion only; no aliases into storage."""
+        return {
+            "capacity": self.capacity,
+            "input_dim": self.input_dim,
+            "size": self._size,
+            "write": self._write,
+            "rows": self._rows[: self._size].copy(),
+        }
+
+    @classmethod
+    def from_snapshot(cls, state: dict[str, Any]) -> "ReplayBuffer":
+        result = cls(state["capacity"], state["input_dim"])
+        size, write, rows = state["size"], state["write"], state["rows"]
+        _integer(size, "size", 0, result.capacity)
+        _integer(write, "write", 0, result.capacity - 1)
+        if size < result.capacity and write != size:
+            raise ValueError("invalid partial ring write position")
+        if rows.dtype != result._rows.dtype or rows.shape != (size,):
+            raise ValueError("replay schema mismatch")
+        for name in ("x", "x_next", "base", "phi_unit", "phi_unit_next"):
+            if not np.isfinite(rows[name]).all():
+                raise ValueError("nonfinite replay data")
+        if (rows["a"] > 5).any() or (rows["deaths"] > 1).any():
+            raise ValueError("invalid replay action/death")
+        for name in ("phi_unit", "phi_unit_next"):
+            if ((rows[name] < 0) | (rows[name] > 1)).any():
+                raise ValueError("invalid replay potential")
+        terminal = rows["done"]
+        if (
+            rows["mask_next"][terminal].any()
+            or rows["x_next"][terminal].any()
+            or rows["phi_unit_next"][terminal].any()
+        ):
+            raise ValueError("invalid terminal replay successor")
+        if not rows["mask_next"][~terminal].any(axis=1).all():
+            raise ValueError("empty live replay mask")
+        result._rows[:size] = rows
+        result._size, result._write = size, write
+        return result
