@@ -11,6 +11,13 @@ are pending and sinks must copy mutable state data if they retain it in replay.
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from typing import Generic, TypeVar
+
+# Spelled with TypeVar/Generic rather than the PEP 695 type parameters UP046/UP047
+# ask for: that syntax is a SyntaxError before Python 3.12, and everything that
+# ships in the submitted agent directory has to parse on the tournament image's
+# interpreter, whichever it is.
+S = TypeVar("S")
 
 
 class BookkeepingError(RuntimeError):
@@ -18,7 +25,7 @@ class BookkeepingError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class Observed[S]:
+class Observed(Generic[S]):  # noqa: UP046
     round: int
     step: int
     state: S
@@ -29,7 +36,7 @@ class Observed[S]:
 
 
 @dataclass
-class Pending[S]:
+class Pending(Generic[S]):  # noqa: UP046
     observed: Observed[S]
     action: int
     played: str
@@ -37,7 +44,7 @@ class Pending[S]:
 
 
 @dataclass(frozen=True)
-class Transition[S]:
+class Transition(Generic[S]):  # noqa: UP046
     """One executed action, including reward ingredients and its successor.
 
     ``next_observed is None`` means terminal. Event batches contain each engine
@@ -56,7 +63,7 @@ class Transition[S]:
         return self.next_observed is None
 
 
-class Bookkeeper[S]:
+class Bookkeeper(Generic[S]):  # noqa: UP046
     def __init__(self, sink: Callable[[Transition[S]], None]) -> None:
         self._sink = sink
         self.round = 0
