@@ -651,3 +651,27 @@ Files for review: `.gitignore`; `agent_code/dqn_agent/train.py`;
 `docs/experiments/dqn_d5_benchmark.py`;
 `docs/experiments/dqn_d5/{smoke,dqn_agent,tabular_q_agent}.json`.
 No commit, push or merge was performed.
+
+
+## D6 - Navigation pilot and diagnostic replication (2026-09-17)
+
+Detailed protocol, commands, provenance and results:
+[dqn_d6/report.md](dqn_d6/report.md). Four lr/target combinations used seed 0;
+no configuration passed the preregistered loss-growth eligibility filter.
+The baseline 3e-4/target_every=1000 was additionally replicated on fresh seeds
+1 and 2 as an explicitly post-pilot diagnostic, reusing seed 0. It is not
+reported as a successfully selected stable configuration.
+
+Six runs total: 300,407 actual transitions, 1,881 training rounds. All three
+baseline final models clear all 50 coins on all 10 validation seeds (30/30),
+mean 124.7 steps, maximum 132. The strict per-round <=126 interpretation fails;
+the mean interpretation passes and is reported separately. Probe Q remained
+finite and bounded (baseline max absQ 4.591; all pilots 13.670), but loss grew
+under the preregistered filter. **D6 acceptance not achieved; D7 not started.**
+The fixed 2,000-row probe has only 6 unique canonical expert-navigation states;
+this important coverage limit is retained in the report. Raw models/checkpoints,
+replay and logs remain under results/dqn/d6_20260917/; nothing is promoted as a
+final trained model. No commit, push or merge was performed.
+
+Final D6 verification: **882 tests passed (97.47 s)**; Ruff check and format
+passed (123 files); Pyright 0 errors/warnings; git diff --check passed.

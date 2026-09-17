@@ -1,0 +1,34 @@
+{
+  "name": "d6-navigation-lr3e-04_target250",
+  "agent": "dqn_agent",
+  "params": {
+    "encoder": "onehot_e3",
+    "lr": 0.0003,
+    "target_every": 250,
+    "probe_path": "results/dqn/d6_20260917/probe/probe.npz"
+  },
+  "chunk_rounds": 5,
+  "eval_every_transitions": 10000,
+  "evaluations": [
+    {
+      "preset": "coin-heaven-solo",
+      "seeds": 10,
+      "seed_start": 500
+    }
+  ],
+  "stages": [
+    {
+      "name": "navigation",
+      "scenario": "coin-heaven",
+      "lineups": [
+        {
+          "opponents": []
+        }
+      ],
+      "transitions": 50000,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.05,
+      "decay_share": 0.6
+    }
+  ]
+}
