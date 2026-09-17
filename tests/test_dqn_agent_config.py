@@ -56,6 +56,51 @@ def test_tabular_environment_does_not_configure_dqn() -> None:
     assert Config.from_env({"TABULAR_Q_AGENT_PARAMS": '{"seed": 7}'}) == Config()
 
 
+def test_d3_defaults() -> None:
+    c = Config()
+    assert (c.gamma, c.lr, c.batch_size, c.grad_clip) == (0.99, 3e-4, 64, 10)
+    assert (c.replay_size, c.warmup, c.train_every, c.target_every) == (
+        100_000,
+        5000,
+        4,
+        1000,
+    )
+    assert (c.epsilon_start, c.epsilon_end, c.epsilon_fraction) == (0.3, 0.05, 0.6)
+    assert (c.c_coin, c.crate_aid, c.death_aid) == (0.5, 0, 0)
+    assert (
+        Config.from_env({ENV_VAR: '{"lr": 0.001, "target_every": 50}'}).target_every
+        == 50
+    )
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("gamma", -1),
+        ("gamma", 1.1),
+        ("lr", 0),
+        ("lr", float("nan")),
+        ("grad_clip", 0),
+        ("batch_size", True),
+        ("batch_size", 1.5),
+        ("replay_size", 0),
+        ("warmup", -1),
+        ("train_every", 0),
+        ("target_every", 0),
+        ("c_coin", float("inf")),
+        ("death_aid", "bad"),
+        ("epsilon_start", 1.1),
+        ("epsilon_end", -0.1),
+        ("epsilon_end", 0.9),
+        ("epsilon_fraction", 0),
+        ("epsilon_fraction", 1.1),
+    ],
+)
+def test_d3_invalid_config(name: str, value: object) -> None:
+    with pytest.raises(ValueError):
+        Config.from_env({ENV_VAR: json.dumps({name: value})})
+
+
 @pytest.mark.parametrize("seed", [None, 0, 123])
 def test_init_seed(seed: int | None) -> None:
     assert Config.from_env({ENV_VAR: json.dumps({"init_seed": seed})}).init_seed == seed

@@ -234,3 +234,104 @@ Final validation: full pytest **788 passed**; Ruff check and format check
 passed; Pyright with `.venv/Scripts/python.exe` reported 0 errors/warnings;
 `git diff --check` passed. Existing gameplay and shared-module tests remain
 unchanged. The rest of D3 is deferred to subsequent tasks.
+
+## D3, part 2 — Double DQN learner, 2026-09-17
+
+Implemented the learner and toy-data validation from the local plan's sections
+5.4–5.6 and D3, on `feature/ivan-dqn` after clean base `41c7f0f` (788 tests).
+No project AGENTS.md/CLAUDE.md was found; the plan remains at
+`C:\Users\ivans\Downloads\Telegram Desktop\dqn.md`.
+
+`learner.py` provides a CPU float32 QNet compatible with D2's
+`32 → 128 → 128 → 6` network, ReLU hidden layers, a frozen initially identical
+target, Adam (lr=3e-4, eps=1e-8), mean Huber loss (delta=1) and gradient norm
+clipping at 10. The architecture stays fixed at 128–128 for D2 export
+compatibility; alternative widths/heads are outside this task.
+
+For a live successor the online network selects an action **within its mask**,
+and the target network supplies that action's value. Terminal rows are handled
+separately: neither next-state forward nor argmax runs for them and their
+target equals reward exactly. Empty nonterminal masks are rejected. Loss uses
+only the batch's selected action columns; target computation has no gradients.
+Metrics return loss, mean absolute TD error and the gradient norm before clipping.
+
+Counter ownership and randomness:
+
+- The future caller owns total and stage-relative **transitions**, stage budget,
+  replay insertion, warm-up (5000) and update cadence (one per 4 transitions).
+  Calling `sample`, `select` or `epsilon` never increments any counter.
+- Learner alone owns **updates**. A successful optimizer step increments it
+  exactly once and automatically copies online to target every 1000 updates.
+  The future caller must not repeat the sync from the plan's pseudocode.
+- Epsilon is a pure function of caller-supplied stage-relative transitions:
+  0.3 at zero, 0.175 after 30% of the stage, 0.05 at 60% and thereafter.
+  `select(evaluate=True)` uses epsilon zero. Exploration and greedy ties use
+  the learner's private Python RNG. Target argmax ties use the first allowed
+  index deterministically; they do not consume the action RNG.
+- Initialisation uses uniform +/-1/sqrt(fan_in), the Linear default
+  distribution, with a private Torch CPU Generator (`init_seed`). Parameters
+  are allocated directly so no nn.Linear constructor draws from global RNG.
+  Replay sampling uses a separate private NumPy Generator (`seed`); negative
+  Python seeds are supported via a private Random-derived nonnegative seed.
+- Learner construction sets Torch CPU threads to 1. Tests verify that global
+  Python, NumPy and Torch RNG states survive initialisation/selection and the
+  500-update learning run unchanged.
+
+`export_numpy` copies W0/b0/W1/b1/W2/b2; `Learner.export()` returns a D2
+QNetwork snapshot with config/update metadata. Toy snapshots are labelled
+`D3-toy`; future game-training callers must supply stage/transition/round
+metadata. No learned weights are shipped. QNet implements `values(x)` for
+future QFunction use, but callbacks remain untouched and NumPy-only.
+
+Validation includes manual online/target disagreement and a larger forbidden
+Q-value, terminal empty masks (even unused NaN successors), selected output-row
+gradients, numerical Huber loss, clipping, target independence/sync timing,
+epsilon boundaries, invalid batches and configuration validation.
+
+- Five-cell corridor: gamma=0.9, one-hot inputs, LEFT masked at the wall;
+  after 2500 updates (target interval 50 for this small test), greedy goes RIGHT
+  in every cell and Q(RIGHT) matches `0.9^(4-cell)` within **0.05**.
+- Overfit: 64 fixed distinct terminal transitions, 1000 updates with default
+  learning rate; final mean Huber loss **<1e-3**.
+- Export/save/load parity: 100 random numeric inputs plus 100 valid E3 inputs,
+  Torch vs NumPy at **1e-5** tolerance; exported arrays are independent copies.
+- Two learners with identical seeds and replay inputs produce identical
+  samples, update metrics, online and target weights after **500 updates**.
+- Torch tests use `pytest.importorskip("torch")`; installed **2.14.0+cpu**
+  actually executed all **22** learner cases. No Torch cases were skipped.
+- The existing isolated callbacks/setup/act tests still pass with and without
+  loaded NumPy weights, and Torch remains absent from that process's modules.
+
+### Update benchmark
+
+Tracked script, invoked from the repository root with a fresh output filename:
+
+```powershell
+.venv/Scripts/python.exe -m docs.experiments.dqn_bench_update --output results/dqn/d3_learner_20260917/bench_update.json
+```
+
+Windows 11 build 26200, Python 3.12.10, NumPy 2.5.2, Torch 2.14.0+cpu,
+AMD64 Family 25 Model 68 Stepping 1. Batch 64, 32→128→128→6, one CPU thread,
+init/action seeds 0, fixed mixed terminal/nonterminal batch. Separate **200
+warm-up** updates, then **1000 timed** updates via `perf_counter_ns`; no tests
+or check processes ran concurrently with the benchmark. One automatic target
+sync is included. Timings include validation, NumPy/Torch conversion, target,
+forward/backward, clipping, Adam and metrics; they exclude replay sampling.
+
+| Statistic | Measured update time |
+|---|---:|
+| Mean | 2.307977 ms |
+| Median | 2.164200 ms |
+| p95 | 3.010775 ms |
+| Maximum | 4.231700 ms |
+
+The **~0.5 ms reference was not reproduced** on this machine: mean is about
+4.62 times that reference. No parameters or workload were tuned to approach it.
+This is the remaining performance discrepancy; all functional criteria pass.
+Raw samples/config/environment are in the ignored benchmark JSON above.
+
+Final checks: **191 related tests passed**, full pytest **829 passed**, Ruff
+check/format passed, Pyright (explicit venv interpreter) 0 errors/warnings,
+and `git diff --check` passed. No new Ruff/Pyright exclusions or dependencies.
+D4 game training callbacks, full-state checkpoints and curriculum are not
+implemented. The only learning performed here was on toy/test/benchmark data.

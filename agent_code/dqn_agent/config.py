@@ -5,6 +5,7 @@ Paths do not depend on the framework's cwd.
 """
 
 import json
+import math
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass, fields, replace
@@ -66,6 +67,20 @@ class Config:
     policy: Policy = "learned"
     seed: int | None = None
     init_seed: int | None = None
+    gamma: float = 0.99
+    lr: float = 3e-4
+    batch_size: int = 64
+    replay_size: int = 100_000
+    warmup: int = 5_000
+    train_every: int = 4
+    target_every: int = 1_000
+    grad_clip: float = 10.0
+    c_coin: float = 0.5
+    crate_aid: float = 0.0
+    death_aid: float = 0.0
+    epsilon_start: float = 0.3
+    epsilon_end: float = 0.05
+    epsilon_fraction: float = 0.6
 
     def __post_init__(self) -> None:
         if self.mask not in MASK_VARIANTS:
@@ -82,6 +97,44 @@ class Config:
             raise ValueError(f"seed must be an integer or null, got {self.seed!r}")
         if not _is_init_seed(self.init_seed):
             raise ValueError("init_seed must be a nonnegative integer or null")
+
+        for name in (
+            "batch_size",
+            "replay_size",
+            "train_every",
+            "target_every",
+            "warmup",
+        ):
+            value = getattr(self, name)
+            minimum = 0 if name == "warmup" else 1
+            if type(value) is not int or value < minimum:
+                raise ValueError(f"{name} must be an integer >= {minimum}")
+        for name in (
+            "gamma",
+            "lr",
+            "grad_clip",
+            "c_coin",
+            "crate_aid",
+            "death_aid",
+            "epsilon_start",
+            "epsilon_end",
+            "epsilon_fraction",
+        ):
+            value = getattr(self, name)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+            ):
+                raise ValueError(f"{name} must be finite")
+        if not 0 <= self.gamma <= 1 or self.lr <= 0 or self.grad_clip <= 0:
+            raise ValueError(
+                "gamma must be in [0,1]; lr and grad_clip must be positive"
+            )
+        if not 0 <= self.epsilon_end <= self.epsilon_start <= 1:
+            raise ValueError("expected 0 <= epsilon_end <= epsilon_start <= 1")
+        if not 0 < self.epsilon_fraction <= 1:
+            raise ValueError("epsilon_fraction must be in (0,1]")
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] | None = None) -> "Config":
