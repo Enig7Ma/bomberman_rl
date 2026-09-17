@@ -15,7 +15,7 @@ import events as e
 
 from .bookkeeping import Bookkeeper, Transition
 from .callbacks import AgentSelf
-from .config import REPO_ROOT, metrics_path
+from .config import REPO_ROOT, Config, metrics_path
 from .core.world_model import ACTIONS, Observation
 from .features import Extracted
 from .learner import Learner, UpdateStats, from_numpy
@@ -36,6 +36,9 @@ class Trainer:
         self.replay = ReplayBuffer(self.config.replay_size, agent.encoder.dim)
         self.bookkeeper = Bookkeeper[NDArray[np.float32]](self._on_transition)
         self.transitions = self.rounds_trained = self.stage_position = 0
+        self.stage_start = 0
+        self.driver_state: dict[str, Any] | None = None
+        self.managed_saves = False
         self.run_id = uuid.uuid4().hex
         self.exact_history = True
         self.resume_mode = "random-init"
@@ -218,13 +221,44 @@ class Trainer:
             "resume_mode": self.resume_mode,
             "exact_history": self.exact_history,
         }
-        if (
+        if not self.managed_saves and (
             self.rounds_trained % self.config.save_every == 0
             or self.rounds_trained % self.config.replay_save_every == 0
         ):
             self.save(full=self.rounds_trained % self.config.replay_save_every == 0)
             self.last_record["save_seconds"] = dict(self.last_save)
         append_record(metrics_path(), self.last_record)
+
+    def configure_stage(self, config: Config) -> None:
+        """Change curriculum coefficients at a round boundary, keeping optimizer/RNG.
+
+        Warm-up, update cadence, target cadence and representation stay fixed.
+        Only a new stage resets its epsilon position; total counters never reset.
+        """
+        if self.bookkeeper.pending is not None:
+            raise RuntimeError("stage change requires a completed round")
+        mutable = {
+            "stage",
+            "stage_transitions",
+            "epsilon_start",
+            "epsilon_end",
+            "epsilon_fraction",
+            "gamma",
+            "lr",
+            "grad_clip",
+            "c_coin",
+            "crate_aid",
+            "death_aid",
+        }
+        old, new = asdict(self.config), asdict(config)
+        if any(old[key] != new[key] for key in old.keys() - mutable):
+            raise ValueError("cannot change structural training config between stages")
+        if config.stage != self.config.stage:
+            self.stage_start = self.transitions
+            self.stage_position = 0
+        self.config = self.agent.config = self.learner.config = config
+        for group in self.learner.optimizer.param_groups:
+            group["lr"] = config.lr
 
     def save(self, *, full: bool = True) -> None:
         """Chunk-end hook: full=True saves a consistent pair at a round boundary."""
@@ -250,6 +284,8 @@ class Trainer:
             "transitions": self.transitions,
             "rounds_trained": self.rounds_trained,
             "stage_position": self.stage_position,
+            "stage_start": self.stage_start,
+            "driver_state": self.driver_state,
             "learner": self.learner.training_state(),
             "feature_rng": self.agent.rng.getstate(),
             "exact_history": self.exact_history,
@@ -300,7 +336,10 @@ class Trainer:
         )
         if (
             state["learner"]["updates"] != expected_updates
-            or state["stage_position"] != state["transitions"]
+            or state["stage_position"] + state.get("stage_start", 0)
+            != state["transitions"]
+            or type(state.get("stage_start", 0)) is not int
+            or state.get("stage_start", 0) < 0
         ):
             raise ValueError("checkpoint counters/schedule are inconsistent")
         if state["rounds_trained"] > state["transitions"]:
@@ -319,6 +358,8 @@ class Trainer:
         self.transitions, self.rounds_trained, self.stage_position = (
             state[k] for k in ("transitions", "rounds_trained", "stage_position")
         )
+        self.stage_start = state.get("stage_start", 0)
+        self.driver_state = state.get("driver_state")
         self.run_id = state["run_id"]
         self.parent_checkpoint = state["parent_checkpoint"]
         self.exact_history = state["exact_history"] and not degraded

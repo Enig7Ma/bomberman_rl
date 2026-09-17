@@ -478,3 +478,176 @@ No functional D4 criterion remains unmet. Remaining boundaries: fixed probes
 belong to D6, world/opponent RNG control belongs to the experiment harness,
 stale replay is degraded recovery, multi-file saves are not transactional, and
 D5 curriculum/driver work and long training remain unstarted.
+
+
+## D5 - Shared curriculum driver (2026-09-17)
+
+Scope: driver integration only; no D6 pilot, fixed probe collection or long
+curriculum. Started on `feature/ivan-dqn` with a clean working tree. The local
+plan read for this change is
+`C:/Users/ivans/Downloads/Telegram Desktop/dqn.md`, section 5.9 and D5.
+Its statement that Q5 does not yet exist is outdated: `training/` is tracked
+and implemented. No AGENTS.md/CLAUDE.md or separate tabular Q5 plan was found
+in the project/ancestor locations or the supplied plan directory. Existing
+training source and tests define the compatibility baseline. `dev/` and
+`results/` are ignored; their contents are not attributed to a merge.
+
+### Interface and budget semantics
+
+- `training/spec.py` names the agent, environment prefix, inference model,
+  frozen-package prefix, model validation/initialisation and full-save hook.
+  Importing this interface/evaluation does not import Torch.
+- Existing curricula default to `tabular_q_agent`; round budgets, round-based
+  epsilon, snapshot names and existing tests remain supported. Stage `params`
+  may override coefficients, but not encoding or driver-owned fields.
+- DQN curricula select `agent: "dqn_agent"`. Every stage requires a positive
+  `transitions` budget. Optional positive `rounds` is an additional cap for
+  bounded smoke/throughput runs; zero/omitted means no round cap. Stop when
+  either cap is met. `chunk_rounds` limits world lifetime, not epsilon duration.
+- Epsilon uses the current stage's actual inserted transitions, including
+  sampled earlier-stage lineups (`replay_share`). It decays over `decay_share`
+  of the transition budget. Stage changes reset that position only; global
+  transitions, updates, optimizer, target, buffer and private RNG continue.
+  Stage params support lr, gamma, c_coin, crate_aid, death_aid and grad_clip.
+  Warm-up/update/target cadence and buffer/schema remain fixed within a run.
+- A budget reached mid-round does **not** cut the round or fabricate a terminal:
+  finish the round, including posthumous events, then save. Transition overshoot
+  is at most the remaining learner actions in that round (under the 400-step
+  engine limit). An early budget boundary can make the last chunk shorter.
+- `eval_every_transitions` defaults to 100,000. At a completed chunk boundary,
+  crossing an interval writes one `transition_<actual_count>.npz` snapshot.
+  The final chunk of each stage also writes one. Thresholds crossed in a chunk
+  are coalesced, not presented as exact intermediate models; overshoot is up
+  to `chunk_rounds * 400 - 1` transitions. Choose chunk_rounds=1 for round-level
+  snapshot resolution. Evaluation is the explicit `training evaluate` command,
+  using those actual transition counts as its curve axis.
+
+### Persistence, failures, frozen opponents and evaluation
+
+The DQN driver disables automatic per-round saves and invokes
+`AgentSpec.save_chunk -> trainer.save(full=True)` after every chunk, independent
+of replay_save_every. It also writes a full initial state before the first
+round. D4's per-file atomic write/load implementation and weights_only=True
+remain in use. No new transactional storage engine is introduced.
+
+The checkpoint now carries a driver cursor and committed chunk records. Only
+a successful full save is followed by publishing chunks.jsonl/snapshot. A
+failure during play leaves the prior chunk as the durable state: retry restores
+it and discards metrics for the uncommitted rounds before replaying that chunk.
+If checkpoint save succeeded but the chunk marker did not, retry reconstructs
+the marker and latest snapshot without performing extra learning. A stale
+NumPy export can be re-exported from the checkpoint. The full-save files are
+still **not a multi-file transaction**: missing/newer/unrelated replay is
+rejected by D4; the driver also rejects valid-but-stale replay rather than
+calling it exact resume. Restore a consistent pair or explicitly start a new
+run with `--init-from q_net.npz`; the latter keeps only online weights and
+resets target to online, Adam, counters and replay.
+
+Frozen DQN opponents load the newest snapshot through an explicit model path;
+no safe-random fallback. Before any snapshot, `frozen_initial.npz` preserves
+initial weights, rather than following the live model on each chunk. Generated
+packages have a run-directory hash and seed in their names. CLI tabular runs
+also use scoped frozen names; the legacy direct Python helper retains its old
+name default. Opponent and learner log FileHandlers are routed into each run's
+logs during world construction, before opening the framework's hardcoded paths.
+There are no cross-run model/replay/metrics/log writes in the two-process test.
+
+Evaluation uses train=False and explicit DQN policy=learned, loads the requested
+NumPy snapshot, and neither loads nor updates checkpoint/replay. Tests compare
+training artifact bytes before/after evaluation and inspect the actually loaded
+weights for evaluation/frozen agents. An independent evaluation subprocess
+asserts that Torch remains absent from sys.modules. Q-table averaging stays
+explicitly table-only; it rejects a DQN run instead of interpreting network
+weights as a Q-table. Table-specific visited/unseen metrics are not defined for
+DQN (the shared curve currently shows 0/NaN in those columns).
+
+The run seed controls curriculum choices and private action/replay/initialisation
+RNG. World seeds are disjoint per chunk/run. It is **not** full control of
+opponents: rule_based_agent still seeds itself from entropy. The exact interrupted
+vs uninterrupted regression uses solo worlds with deterministic chunk seeds;
+D4's separately controlled opponent resume regression remains unchanged.
+
+### Reproducible commands (PowerShell, repository root)
+
+```powershell
+# Two independent, three-round DQN smokes; each process uses one Torch CPU thread.
+.venv/Scripts/python.exe -m training run --curriculum docs/experiments/dqn_d5/smoke.json --out results/dqn/d5_smoke_20260917 --runs 2 --jobs 2 --no-progress
+
+# Resume: exactly the same command. Completed chunks are not trained again.
+.venv/Scripts/python.exe -m training run --curriculum docs/experiments/dqn_d5/smoke.json --out results/dqn/d5_smoke_20260917 --runs 2 --jobs 2 --no-progress
+
+# Greedy NumPy evaluation of every saved snapshot.
+.venv/Scripts/python.exe -m training evaluate results/dqn/d5_smoke_20260917 --jobs 1 --no-progress
+
+# Short throughput comparison. --out must be a new directory.
+.venv/Scripts/python.exe -m docs.experiments.dqn_d5_benchmark --out results/dqn/d5_throughput_repeat
+```
+
+Executed smoke and resume on Windows/Python 3.12.10. Sandbox initially denied
+multiprocessing Pipe creation (WinError 5); the same command completed with
+execution permission outside that sandbox restriction. This was not a driver
+failure. The actual spawned runs produced:
+
+| Run | Rounds / metrics rows | Transitions | Updates | Snapshot transition counts |
+|---|---:|---:|---:|---|
+| run_0, seed 0 | 3 | 760 | 175 | 572, 760 |
+| run_1, seed 1 | 3 | 737 | 169 | 563, 737 |
+
+Each has q_net.npz, checkpoint.pt, replay.npz, chunks.jsonl and separate logs.
+Resume kept three metrics rows per run. Evaluation executed two fixed seeds
+per snapshot; this only checks the driver/inference path, not D6 performance.
+The spawned frozen-opponent regression also verifies distinct seeds/weights
+and run-scoped frozen package paths. Raw smoke data are under
+`results/dqn/d5_smoke_20260917/`.
+
+### Throughput measured on this computer
+
+Tracked configs: `docs/experiments/dqn_d5/{dqn_agent,tabular_q_agent}.json`.
+Both use E3, gamma=.99, coin potential=.5, epsilon=.3, chunks of three rounds:
+six solo coin-heaven rounds then three classic rounds against three rule-based
+agents. DQN warm-up is deliberately 64 transitions for this technical measurement
+(default 5,000 unchanged); batch=64, train_every=4, one Torch thread. Independent
+agent behaviour and opponent entropy mean equal stage configurations, not equal
+trajectories or scores. Neither run is a full curriculum.
+
+| Agent | Rounds | Transitions | Updates | End-to-end seconds | Transitions/s | Rounds/s | Updates/s |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| DQN | 9 | 2,486 | 606 | 20.903 | 118.93 | 0.431 | 28.99 |
+| Table | 9 | 2,758 | 2,758 | 12.122 | 227.51 | 0.742 | 227.51 |
+
+End-to-end wall time is measured around a fresh subprocess: **includes startup,
+imports, warm-up, world setup, full saves, snapshots and logging**; no evaluation.
+Runs were measured sequentially, jobs=1, without concurrent test runs. Summed
+per-round metric times exclude startup and chunk-end saves: DQN 12.401 s
+(200.47 transitions/s, .726 rounds/s, 48.87 updates/s), table 8.858 s
+(311.37 transitions/s, 1.016 rounds/s). Warm-up remains included in both views.
+Chunk records use actual learner transitions, distinct from engine steps after
+the learner dies; their local timing excludes DQN's final chunk save, so use
+the benchmark's end-to-end figures for budgeting. Raw commands/logs/summary:
+`results/dqn/d5_throughput_20260917/summary.json`.
+
+### Validation and boundaries
+
+Related suite: **95 passed** before the additional marker-interruption regression.
+**Final full pytest: 877 passed in 128.30 s**, no skips. Ruff check passed;
+Ruff format --check: 119 files already formatted; Pyright: 0 errors, 0 warnings;
+`git diff --check` passed. No checks or test expectations were weakened, and
+no Ruff/Pyright exclusions were added.
+Tests cover legacy tabular parsing/driver/world/averaging, DQN three-round smoke,
+stage overrides and lineup changes, transition-budget overshoot with terminal
+credit, split/resume equality of all learner/RNG/replay state, save failure,
+checkpoint-before-marker recovery, stale/newer/unrelated generations, NumPy
+warm-start, spawned runs with frozen opponents, and actual snapshot inference.
+
+D6 and long training remain unstarted. Full opponent RNG reproducibility,
+transactional three-file persistence and exact sub-round snapshot timing are
+not claimed. Checkpoints/replay/bootstrap weights/generated opponents remain
+ignored; no model from these smoke runs is promoted to a trained release.
+
+
+Files for review: `.gitignore`; `agent_code/dqn_agent/train.py`;
+`training/{spec,dqn,config,driver,evaluate,frozen,world,average,cli}.py`;
+`tests/test_training_dqn.py`; `docs/experiments/dqn.md`;
+`docs/experiments/dqn_d5_benchmark.py`;
+`docs/experiments/dqn_d5/{smoke,dqn_agent,tabular_q_agent}.json`.
+No commit, push or merge was performed.

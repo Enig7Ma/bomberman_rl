@@ -44,16 +44,18 @@ from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, cast
 
 from tqdm import tqdm
 
 from agent_code.tabular_q_agent.config import ENV_VAR, METRICS_ENV_VAR, MODEL_ENV_VAR
 from agent_code.tabular_q_agent.features import ENCODINGS
+from agent_code.tabular_q_agent.metrics import read_records as read_tabular_metrics
 from agent_code.tabular_q_agent.qtable import QTable
 from tournament.engine import REPO_ROOT, quiet_logging, reset_framework_logging
 from training.config import FROZEN, LEARNER, Curriculum, parse_curriculum
 from training.frozen import env_prefix, frozen_name, install_table, materialise_frozen
+from training.spec import SPECS
 from training.world import create_training_world, play_round
 
 TRAINING_SEED_BASE: Final = 100_000
@@ -64,7 +66,7 @@ MODEL_FILE: Final = "q_table.npz"
 METRICS_FILE: Final = "metrics.jsonl"
 CHUNKS_FILE: Final = "chunks.jsonl"
 SNAPSHOT_DIR: Final = "snapshots"
-_SNAPSHOT = re.compile(r"round_(\d+)\.npz")
+_SNAPSHOT = re.compile(r"(?:round|transition)_(\d+)\.npz")
 
 
 @dataclass(frozen=True)
@@ -103,6 +105,12 @@ class ChunkRecord:
     rounds_trained: int
     visited_states: int
     snapshot: str | None
+    transitions: int = 0
+    total_transitions: int = 0
+    updates: int = 0
+    total_updates: int = 0
+    transitions_per_second: float = 0.0
+    updates_per_second: float = 0.0
 
 
 def world_seed(run_seed: int, index: int) -> int:
@@ -218,10 +226,10 @@ def _start_or_resume(
     run_dir.mkdir(parents=True, exist_ok=True)
     init_rounds = 0
     if init_from is not None:
-        encoding = ENCODINGS[curriculum.agent_config().encoding]
-        source = QTable.load(init_from, encoding)  # refuses another encoding
-        init_rounds = int(source.meta.get("rounds_trained", 0))
-        _copy_atomic(init_from, run_dir / MODEL_FILE)
+        spec = SPECS[curriculum.agent]
+        source_rounds, _ = spec.model_info(init_from, curriculum.params)
+        init_rounds = source_rounds if curriculum.agent == LEARNER else 0
+        copy_atomic(init_from, run_dir / spec.model_file)
     document = {
         "run_seed": run_seed,
         "git_commit": _git_commit(),
@@ -241,7 +249,7 @@ def _rounds_trained(model: Path, curriculum: Curriculum) -> int:
     return int(QTable.load(model, encoding).meta.get("rounds_trained", 0))
 
 
-def _copy_atomic(source: Path, target: Path) -> None:
+def copy_atomic(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_name(f"{target.name}.tmp")
     shutil.copyfile(source, tmp)
@@ -255,6 +263,7 @@ def train_run(
     *,
     init_from: Path | None = None,
     progress: bool = False,
+    frozen_namespace: Path | None = None,
 ) -> list[ChunkRecord]:
     """Play every chunk the table has not trained yet; returns their records.
 
@@ -263,6 +272,10 @@ def train_run(
     """
     run_dir = run_dir.resolve()
     init_rounds = _start_or_resume(run_dir, curriculum, run_seed, init_from)
+    if curriculum.agent == "dqn_agent":
+        from training.dqn import train_dqn
+
+        return train_dqn(curriculum, run_dir, run_seed, progress=progress)
     model = run_dir / MODEL_FILE
     encoding = curriculum.agent_config().encoding
     chunks = plan_chunks(curriculum, run_seed)
@@ -277,7 +290,7 @@ def train_run(
 
     frozen: str | None = None
     if any(FROZEN in chunk.opponents for chunk in remaining):
-        frozen = frozen_name(run_seed)
+        frozen = frozen_name(run_seed, namespace=frozen_namespace)
         latest = snapshots(run_dir)
         start_table = latest[-1][1] if latest else (model if model.exists() else None)
         materialise_frozen(frozen, start_table, encoding=encoding)
@@ -298,6 +311,7 @@ def _play_chunk(
     encoding = curriculum.agent_config().encoding
     params = {
         **curriculum.params,
+        **next(s.params for s in curriculum.stages if s.name == chunk.stage),
         "epsilon": chunk.epsilon,
         "stage": chunk.label,
         "save_every": curriculum.chunk_rounds,
@@ -329,6 +343,9 @@ def _play_chunk(
             for _ in range(curriculum.chunk_rounds):
                 play_round(world)
                 engine_steps += int(world.step)
+            SPECS[curriculum.agent].save_chunk(
+                cast(Any, world).agents[0].backend.runner.fake_self
+            )
         finally:
             reset_framework_logging()
     wall = time.perf_counter() - started
@@ -344,10 +361,13 @@ def _play_chunk(
     snapshot: Path | None = None
     if trained % curriculum.eval_every == 0:
         snapshot = run_dir / SNAPSHOT_DIR / f"round_{trained:06d}.npz"
-        _copy_atomic(model, snapshot)
+        copy_atomic(model, snapshot)
         if frozen is not None:
             install_table(frozen, snapshot, encoding=encoding)
 
+    metrics = read_tabular_metrics(run_dir / METRICS_FILE)
+    transitions = sum(row.steps for row in metrics[-curriculum.chunk_rounds :])
+    updates = sum(row.updates for row in metrics[-curriculum.chunk_rounds :])
     record = ChunkRecord(
         index=chunk.index,
         stage=chunk.stage,
@@ -365,6 +385,12 @@ def _play_chunk(
         rounds_trained=trained,
         visited_states=table.visited_states,
         snapshot=snapshot.name if snapshot is not None else None,
+        transitions=transitions,
+        total_transitions=sum(row.steps for row in metrics),
+        updates=updates,
+        total_updates=sum(row.updates for row in metrics),
+        transitions_per_second=transitions / wall,
+        updates_per_second=updates / wall,
     )
     with (run_dir / CHUNKS_FILE).open("a", encoding="utf-8") as file:
         file.write(json.dumps(asdict(record)) + "\n")
@@ -387,7 +413,9 @@ def read_chunk_records(run_dir: Path) -> list[ChunkRecord]:
 def _train_worker(
     curriculum: Curriculum, run_dir: Path, run_seed: int, init_from: Path | None
 ) -> None:
-    train_run(curriculum, run_dir, run_seed, init_from=init_from)
+    train_run(
+        curriculum, run_dir, run_seed, init_from=init_from, frozen_namespace=run_dir
+    )
 
 
 def run_many(
@@ -405,7 +433,14 @@ def run_many(
     run_dirs = {seed: (out_dir / f"run_{seed}").resolve() for seed in run_seeds}
     if jobs == 1 or len(run_dirs) == 1:
         for seed, run_dir in run_dirs.items():
-            train_run(curriculum, run_dir, seed, init_from=init_from, progress=progress)
+            train_run(
+                curriculum,
+                run_dir,
+                seed,
+                init_from=init_from,
+                progress=progress,
+                frozen_namespace=run_dir,
+            )
         return run_dirs
     import multiprocessing as mp
 

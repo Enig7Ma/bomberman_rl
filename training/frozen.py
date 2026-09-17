@@ -15,23 +15,32 @@ Only directories with the ``tabular_frozen_`` prefix are ever created or
 deleted here; they are gitignored.
 """
 
+import hashlib
 import os
 import shutil
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 
 from agent_code.tabular_q_agent.features import ENCODINGS
 from agent_code.tabular_q_agent.qtable import QTable
 from tournament.engine import REPO_ROOT
-from training.config import FROZEN_DIR_PREFIX, LEARNER
+from training.config import LEARNER
+from training.spec import SPECS, AgentSpec
 
 AGENT_CODE: Final = REPO_ROOT / "agent_code"
 _NOT_COPIED = shutil.ignore_patterns("logs", "model", "__pycache__", "*.pyc")
 
 
-def frozen_name(run_seed: int) -> str:
+def frozen_name(
+    run_seed: int, *, spec: AgentSpec = SPECS[LEARNER], namespace: Path | None = None
+) -> str:
     """The frozen opponent's directory for one training run."""
-    return f"{FROZEN_DIR_PREFIX}s{run_seed}"
+    suffix = (
+        ""
+        if namespace is None
+        else "_" + hashlib.sha256(str(namespace.resolve()).encode()).hexdigest()[:12]
+    )
+    return f"{spec.frozen_prefix}s{run_seed}{suffix}"
 
 
 def env_prefix(name: str) -> str:
@@ -40,9 +49,15 @@ def env_prefix(name: str) -> str:
 
 
 def _checked(name: str) -> Path:
-    if not name.startswith(FROZEN_DIR_PREFIX) or not name.isidentifier():
+    if (
+        not name.startswith(tuple(spec.frozen_prefix for spec in SPECS.values()))
+        or not name.isidentifier()
+    ):
         raise ValueError(f"{name!r} is not a frozen opponent's directory name")
-    return AGENT_CODE / name
+    target = (AGENT_CODE / name).resolve()
+    if target.parent != AGENT_CODE.resolve():
+        raise ValueError("frozen directory resolves outside agent_code")
+    return target
 
 
 def materialise_frozen(name: str, table: Path | None, *, encoding: str) -> Path:
@@ -73,3 +88,24 @@ def install_table(name: str, table: Path | None, *, encoding: str) -> None:
 
 def remove_frozen(name: str) -> None:
     shutil.rmtree(_checked(name), ignore_errors=True)
+
+
+def materialise_agent(
+    name: str, model: Path | None, *, spec: AgentSpec, params: dict[str, Any], seed: int
+) -> Path:
+    """Install a snapshot in a run-scoped package, separate from training files."""
+    target = _checked(name)
+    # Reuse code directories: another world may already have imported this package.
+    shutil.copytree(
+        AGENT_CODE / spec.name, target, ignore=_NOT_COPIED, dirs_exist_ok=True
+    )
+    destination = target / "model" / spec.model_file
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if model is None:
+        spec.initial_model(destination, params, seed)
+    else:
+        spec.model_info(model, params)  # fail loudly instead of inference fallback
+        tmp = destination.with_suffix(".tmp")
+        shutil.copyfile(model, tmp)
+        os.replace(tmp, destination)
+    return destination
