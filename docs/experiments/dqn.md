@@ -675,3 +675,10 @@ final trained model. No commit, push or merge was performed.
 
 Final D6 verification: **882 tests passed (97.47 s)**; Ruff check and format
 passed (123 files); Pyright 0 errors/warnings; git diff --check passed.
+# D7 stage 2
+
+The bounded seed-0 continuation, preregistered mixture, full-state transfer,
+validation protocol and results are recorded in
+[dqn_d7_stage2.md](dqn_d7_stage2.md). D6 is not reclassified as successful and
+its pilot still has no selected winner. This stage uses the baseline as an
+authorized working configuration.
