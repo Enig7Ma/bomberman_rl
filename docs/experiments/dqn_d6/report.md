@@ -258,3 +258,11 @@ Post-pull verification: **882 tests passed in 85.97 s**; Ruff check/format,
 Pyright (0 errors/warnings) and git diff --check passed. The user subsequently
 authorized committing and pushing D6; only experiment scripts, configurations,
 tests and compact reports are included, not models/replay/raw results.
+
+
+## Post-hoc audit, 2026-09-18
+
+See [audit/report.md](audit/report.md) for criterion provenance, exact loss
+windows, target-sync associations, original probe reconstruction, and probe_v2
+results on all 36 existing snapshots. Original selection remains null; no
+training or D7 was started. The original probe/results/checksums are retained.
