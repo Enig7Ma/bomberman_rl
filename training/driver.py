@@ -201,7 +201,7 @@ def _git_commit() -> str | None:
     return f"{head}-dirty" if dirty else head
 
 
-def _start_or_resume(
+def start_or_resume(
     run_dir: Path, curriculum: Curriculum, run_seed: int, init_from: Path | None
 ) -> int:
     """Create or check ``run.json``; returns the rounds the start table had."""
@@ -271,7 +271,7 @@ def train_run(
     of another table instead of an empty one.
     """
     run_dir = run_dir.resolve()
-    init_rounds = _start_or_resume(run_dir, curriculum, run_seed, init_from)
+    init_rounds = start_or_resume(run_dir, curriculum, run_seed, init_from)
     if curriculum.agent == "dqn_agent":
         from training.dqn import train_dqn
 

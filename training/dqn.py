@@ -42,7 +42,7 @@ from training.spec import SPECS
 from training.world import create_training_world, play_round
 
 
-def _config(course: Curriculum, stage: Stage, index: int, seed: int) -> Config:
+def stage_config(course: Curriculum, stage: Stage, index: int, seed: int) -> Config:
     params: dict[str, Any] = {
         **course.params,
         **stage.params,
@@ -149,7 +149,9 @@ def train_dqn(
             index = len(state["records"])
             stage_index = int(state["next_stage"])
             stage = course.stages[stage_index]
-            config = _config(course, stage, stage_index, seed)
+            config = stage_config(
+                course, stage, stage_index + int(state.get("stage_offset", 0)), seed
+            )
             rng = random.Random(world_seed(seed, index))
             source = stage
             replay = stage_index > 0 and rng.random() < stage.replay_share
@@ -223,12 +225,14 @@ def train_dqn(
                     previous = (
                         state["records"][-1]["total_transitions"]
                         if state["records"]
-                        else 0
+                        else trainer.stage_start
                     )
                     take_snapshot = (
                         finished
-                        or total // course.eval_every_transitions
-                        > previous // course.eval_every_transitions
+                        or (total - trainer.stage_start)
+                        // course.eval_every_transitions
+                        > max(0, previous - trainer.stage_start)
+                        // course.eval_every_transitions
                     )
                     snapshot = (
                         f"{SNAPSHOT_DIR}/transition_{total:09d}.npz"
