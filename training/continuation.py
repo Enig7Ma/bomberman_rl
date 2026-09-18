@@ -17,6 +17,7 @@ from typing import cast
 
 from agent_code.dqn_agent.callbacks import AgentSelf, setup
 from agent_code.dqn_agent.config import REPO_ROOT
+from agent_code.dqn_agent.nstep import NStep, convert_replay
 from agent_code.dqn_agent.persistence import load_checkpoint
 from agent_code.dqn_agent.probe import Probe
 from agent_code.dqn_agent.train import Trainer
@@ -26,7 +27,12 @@ from training.driver import environment, start_or_resume
 
 
 def fork_curriculum(
-    parent: Path, destination: Path, course: Curriculum, seed: int
+    parent: Path,
+    destination: Path,
+    course: Curriculum,
+    seed: int,
+    *,
+    convert_n_step: bool = False,
 ) -> Trainer:
     """Create a fresh experiment directory, returning its fully restored trainer.
 
@@ -55,6 +61,20 @@ def fork_curriculum(
         raise ValueError("continuation requires a consistent checkpoint/replay pair")
     offset = trainer.config.stage + 1
     config = stage_config(course, course.stages[0], offset, seed)
+    converted = False
+    if config.n_step != trainer.config.n_step:
+        if not convert_n_step or trainer.config.n_step != 1 or config.n_step != 3:
+            raise ValueError(
+                "return horizon change requires explicit 1-to-3 conversion"
+            )
+        if trainer.nstep.pending:
+            raise ValueError("conversion requires an episode boundary")
+        trainer.replay = convert_replay(trainer.replay)
+        trainer.nstep = NStep(3, holder.encoder.dim)
+        trainer.config = holder.config = trainer.learner.config = replace(
+            trainer.config, n_step=3
+        )
+        converted = True
     # Validate all structural fields before changing the optional probe.
     trainer.configure_stage(replace(config, probe_path=trainer.config.probe_path))
     probe = (
@@ -87,6 +107,7 @@ def fork_curriculum(
         "parent_transitions": trainer.transitions,
         "parent_updates": trainer.learner.updates,
         "parent_rounds": trainer.rounds_trained,
+        "replay_conversion": "1-to-3" if converted else None,
         "stage_offset": offset,
     }
     (destination / "continuation.json").write_text(

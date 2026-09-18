@@ -68,6 +68,7 @@ class Config:
     seed: int | None = None
     init_seed: int | None = None
     gamma: float = 0.99
+    n_step: int = 1
     lr: float = 3e-4
     batch_size: int = 64
     replay_size: int = 100_000
@@ -89,6 +90,8 @@ class Config:
     probe_path: str | None = None
 
     def __post_init__(self) -> None:
+        if type(self.n_step) is not int or self.n_step not in (1, 3):
+            raise ValueError("n_step must be 1 or 3")
         if self.mask not in MASK_VARIANTS:
             raise ValueError(f"mask must be one of {MASK_VARIANTS}, got {self.mask!r}")
         if self.encoding != "E3":

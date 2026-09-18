@@ -1,0 +1,28 @@
+{
+  "parent": "results\\dqn\\d6_20260917\\pilot_lr3e-04_target1000\\run_0",
+  "parent_checksums": {
+    "checkpoint.pt": "4de4b2cfae5b0794e6ab4cc53b0c126c6d590afd057ef412013b9c47139811cd",
+    "q_net.npz": "ba1b3e407bff0de6e86d47bd95c7fd3ad6613d5ce83f5e678dc44f1b2c769e98",
+    "replay.npz": "4fe49c723bd3989b00ca77b0e16aa7e2ec6be5d2b2eb2f424c1fb0a01a7c06ed"
+  },
+  "destination": "results\\dqn\\d10_nstep3_prepare_20260918",
+  "config": "docs\\experiments\\dqn_d10_nstep3.json",
+  "transitions": 50047,
+  "updates": 11262,
+  "rounds": 319,
+  "replay_size": 50047,
+  "write": 50047,
+  "source_terminals": 319,
+  "sequence_lengths": {
+    "1": 319,
+    "2": 319,
+    "3": 49409
+  },
+  "learner_and_rng_unchanged": true,
+  "parent_unchanged": true,
+  "games_run": 0,
+  "updates_run": 0,
+  "lr": [
+    0.0003
+  ]
+}

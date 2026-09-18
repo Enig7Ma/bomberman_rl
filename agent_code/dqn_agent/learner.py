@@ -170,6 +170,7 @@ class Learner:
             (batch.r, (n,), np.float32),
             (batch.done, (n,), np.bool_),
             (batch.mask_next, (n, 6), np.bool_),
+            (batch.k, (n,), np.uint8),
         ):
             if array.shape != shape or array.dtype != dtype:
                 raise ValueError("batch shape or dtype mismatch")
@@ -180,6 +181,8 @@ class Learner:
         ):
             raise ValueError("invalid actions, inputs or rewards")
         live = ~batch.done
+        if ((batch.k < 1) | (batch.k > 3)).any():
+            raise ValueError("invalid return horizon")
         if not batch.mask_next[live].any(axis=1).all():
             raise ValueError("nonterminal mask must allow an action")
         if not np.isfinite(batch.x_next[live]).all():
@@ -198,7 +201,10 @@ class Learner:
                 # Target-selection ties use first allowed index, deterministically.
                 actions = online_q.argmax(dim=1, keepdim=True)
                 target_q = self.target.forward(x_next).gather(1, actions).squeeze(1)
-                y[from_numpy(live)] += self.config.gamma * target_q
+                discounts = np.power(self.config.gamma, batch.k[live]).astype(
+                    np.float32
+                )
+                y[from_numpy(live)] += from_numpy(discounts) * target_q
             if not torch.isfinite(y).all():
                 raise ValueError("nonfinite Double DQN target")
             return y

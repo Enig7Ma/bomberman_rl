@@ -1,8 +1,9 @@
-"""D3 replay only: canonical transitions, uniform sampling with replacement.
+"""Canonical one/multi-step replay, uniform sampling with replacement.
 
 The caller canonicalises x/a and independently x_next/mask_next. This buffer
 cannot infer coordinate systems from numeric vectors. Terminal successors are
-normalised to zeros (including their potential). No learning or persistence.
+normalised to zeros (including their potential). Raw sequence reward components
+retain discounting and shaping when coefficients change at sampling time.
 """
 
 import math
@@ -28,6 +29,8 @@ class ReplayTransition:
     stage: int
     round_id: int
     transition_id: int
+    # Ordered (base, crates, deaths, phi, phi_next), not pre-discounted.
+    reward_steps: tuple[tuple[float, int, int, float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,7 @@ class ReplayBatch:
     round_id: NDArray[np.uint32]
     transition_id: NDArray[np.uint64]
     r: NDArray[np.float32]
+    k: NDArray[np.uint8]
 
 
 def _integer(value: int, name: str, low: int, high: int) -> None:
@@ -106,6 +110,8 @@ class ReplayBuffer:
                     ("stage", np.uint8),
                     ("round_id", np.uint32),
                     ("transition_id", np.uint64),
+                    ("k", np.uint8),
+                    ("components", np.float32, (3, 5)),
                 ]
             ),
         )
@@ -144,6 +150,28 @@ class ReplayBuffer:
             _finite(value, name)
         if not 0 <= t.phi_unit <= 1 or not 0 <= t.phi_unit_next <= 1:
             raise ValueError("unit potentials must be in [0, 1]")
+        steps = t.reward_steps or (
+            (
+                t.base,
+                t.crates,
+                t.deaths,
+                t.phi_unit,
+                0.0 if t.done else t.phi_unit_next,
+            ),
+        )
+        if not 1 <= len(steps) <= 3:
+            raise ValueError("sequence length must be in 1..3")
+        components = np.zeros((3, 5), dtype=np.float32)
+        for i, (base, crates, deaths, phi, phi_next) in enumerate(steps):
+            _integer(crates, "sequence crates", 0, 255)
+            _integer(deaths, "sequence deaths", 0, 1)
+            for value in (base, phi, phi_next):
+                _finite(value, "sequence component")
+            if not 0 <= phi <= 1 or not 0 <= phi_next <= 1:
+                raise ValueError("invalid sequence potential")
+            components[i] = (base, crates, deaths, phi, phi_next)
+        if t.done:
+            components[len(steps) - 1, 4] = 0
         self._rows[self._write] = (
             t.x,
             t.a,
@@ -158,6 +186,8 @@ class ReplayBuffer:
             t.stage,
             t.round_id,
             t.transition_id,
+            len(steps),
+            components,
         )
         self._write = (self._write + 1) % self.capacity
         self._size = min(self._size + 1, self.capacity)
@@ -203,6 +233,12 @@ class ReplayBuffer:
                 - rows["phi_unit"].astype(np.float64)
             )
         )
+        multi = rows["k"] > 1
+        if multi.any():
+            c = rows["components"][multi].astype(np.float64)
+            per_step = c[:, :, 0] + crate_aid * c[:, :, 1] + death_aid * c[:, :, 2]
+            per_step += c_coin * (gamma * c[:, :, 4] - c[:, :, 3])
+            reward[multi] = np.sum(per_step * np.power(gamma, np.arange(3)), axis=1)
         if (
             not np.isfinite(reward).all()
             or (np.abs(reward) > np.finfo(np.float32).max).any()
@@ -223,11 +259,13 @@ class ReplayBuffer:
             round_id=cast(NDArray[np.uint32], rows["round_id"].copy()),
             transition_id=cast(NDArray[np.uint64], rows["transition_id"].copy()),
             r=reward.astype(np.float32),
+            k=cast(NDArray[np.uint8], rows["k"].copy()),
         )
 
     def snapshot(self) -> dict[str, Any]:
         """Physical ring order, filled portion only; no aliases into storage."""
         return {
+            "format_version": 2,
             "capacity": self.capacity,
             "input_dim": self.input_dim,
             "size": self._size,
@@ -239,12 +277,55 @@ class ReplayBuffer:
     def from_snapshot(cls, state: dict[str, Any]) -> "ReplayBuffer":
         result = cls(state["capacity"], state["input_dim"])
         size, write, rows = state["size"], state["write"], state["rows"]
+        version = state.get("format_version", 2)
+        if version == 1:
+            legacy = np.dtype(result._rows.dtype.descr[:-2])
+            if rows.dtype != legacy:
+                raise ValueError("legacy replay schema mismatch")
+            upgraded = np.zeros(size, dtype=result._rows.dtype)
+            for name in legacy.names or ():
+                upgraded[name] = rows[name]
+            upgraded["k"] = 1
+            for column, name in enumerate(
+                ("base", "crates", "deaths", "phi_unit", "phi_unit_next")
+            ):
+                upgraded["components"][:, 0, column] = rows[name]
+            rows = upgraded
+        elif version != 2:
+            raise ValueError("unsupported replay format")
         _integer(size, "size", 0, result.capacity)
         _integer(write, "write", 0, result.capacity - 1)
         if size < result.capacity and write != size:
             raise ValueError("invalid partial ring write position")
         if rows.dtype != result._rows.dtype or rows.shape != (size,):
             raise ValueError("replay schema mismatch")
+        if ((rows["k"] < 1) | (rows["k"] > 3)).any():
+            raise ValueError("invalid sequence length")
+        c = rows["components"]
+        if not np.isfinite(c).all() or ((c[:, :, 3:] < 0) | (c[:, :, 3:] > 1)).any():
+            raise ValueError("invalid sequence components")
+        counts = c[:, :, 1:3]
+        if (
+            (counts < 0).any()
+            or (counts != np.floor(counts)).any()
+            or (c[:, :, 1] > 255).any()
+            or (c[:, :, 2] > 1).any()
+        ):
+            raise ValueError("invalid sequence event counts")
+        for i in range(size):
+            k = int(rows["k"][i])
+            if c[i, k:].any() or (rows["done"][i] and c[i, k - 1, 4] != 0):
+                raise ValueError("invalid sequence padding/terminal potential")
+            if (
+                any(
+                    c[i, 0, j] != rows[name][i]
+                    for j, name in enumerate(("base", "crates", "deaths", "phi_unit"))
+                )
+                or c[i, k - 1, 4] != rows["phi_unit_next"][i]
+            ):
+                raise ValueError("inconsistent sequence components")
+            if not np.array_equal(c[i, : k - 1, 4], c[i, 1:k, 3]):
+                raise ValueError("discontinuous sequence potentials")
         for name in ("x", "x_next", "base", "phi_unit", "phi_unit_next"):
             if not np.isfinite(rows[name]).all():
                 raise ValueError("nonfinite replay data")

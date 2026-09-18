@@ -21,6 +21,7 @@ from .features import Extracted
 from .learner import Learner, UpdateStats, from_numpy
 from .metrics import append_record
 from .network import QNetwork, masked_greedy
+from .nstep import NStep
 from .persistence import load_checkpoint, load_replay, save_checkpoint, save_replay
 from .probe import Probe, check_q
 from .replay import ReplayBuffer, ReplayTransition
@@ -34,6 +35,8 @@ class Trainer:
         self.config = agent.config
         self.learner = Learner(agent.encoder, self.config)
         self.replay = ReplayBuffer(self.config.replay_size, agent.encoder.dim)
+        self.nstep = NStep(self.config.n_step, agent.encoder.dim)
+        self.skipped_updates = 0
         self.bookkeeper = Bookkeeper[NDArray[np.float32]](self._on_transition)
         self.transitions = self.rounds_trained = self.stage_position = 0
         self.stage_start = 0
@@ -134,7 +137,7 @@ class Trainer:
         mask = np.zeros(6, dtype=bool)
         if nxt is not None:
             mask[list(nxt.allowed)] = True
-        self.replay.push(
+        ready = self.nstep.push(
             ReplayTransition(
                 observed.state,
                 transition.action,
@@ -151,6 +154,8 @@ class Trainer:
                 self.transitions,
             )
         )
+        for item in ready:
+            self.replay.push(item)
         self.base += base
         self.shaped_return += (
             base
@@ -163,6 +168,9 @@ class Trainer:
             self.transitions >= self.config.warmup
             and self.transitions % self.config.train_every == 0
         ):
+            if not len(self.replay):
+                self.skipped_updates += 1
+                return
             stats = self.learner.update(self.learner.sample(self.replay))
             self.update_stats.append(stats)
             check_q(self.learner.online.values(observed.state))
@@ -237,6 +245,8 @@ class Trainer:
         """
         if self.bookkeeper.pending is not None:
             raise RuntimeError("stage change requires a completed round")
+        if self.nstep.pending:
+            raise RuntimeError("stage change requires an empty n-step queue")
         mutable = {
             "stage",
             "stage_transitions",
@@ -275,9 +285,13 @@ class Trainer:
                 transitions=self.transitions,
                 schema_id=self.agent.encoder.schema_id,
                 exact_history=self.exact_history,
+                n_step=self.config.n_step,
+                pending_count=len(self.nstep.pending),
             )
         state = {
-            "format_version": 1,
+            "format_version": 2,
+            "nstep": self.nstep.state(),
+            "skipped_updates": self.skipped_updates,
             "schema_id": self.agent.encoder.schema_id,
             "config": asdict(self.config),
             "run_id": self.run_id,
@@ -317,9 +331,9 @@ class Trainer:
 
     def _restore(self, path: Path) -> None:
         state = load_checkpoint(path)
-        if state["schema_id"] != self.agent.encoder.schema_id or state[
-            "config"
-        ] != asdict(self.config):
+        if state["schema_id"] != self.agent.encoder.schema_id or state["config"] | {
+            "n_step": state["config"].get("n_step", 1)
+        } != asdict(self.config):
             raise ValueError(
                 "checkpoint schema/config mismatch; use q_net alone for a new run"
             )
@@ -335,7 +349,8 @@ class Trainer:
             0, state["transitions"] // self.config.train_every - first_update + 1
         )
         if (
-            state["learner"]["updates"] != expected_updates
+            state["learner"]["updates"] + state.get("skipped_updates", 0)
+            != expected_updates
             or state["stage_position"] + state.get("stage_start", 0)
             != state["transitions"]
             or type(state.get("stage_start", 0)) is not int
@@ -355,6 +370,19 @@ class Trainer:
         self.learner.restore_training_state(state["learner"])
         self.agent.rng.setstate(state["feature_rng"])
         self.replay = replay
+        self.skipped_updates = state.get("skipped_updates", 0)
+        if type(self.skipped_updates) is not int or self.skipped_updates < 0:
+            raise ValueError("invalid skipped update count")
+        self.nstep = NStep.restore(state.get("nstep", self.nstep.state()))
+        if (
+            self.nstep.n_step != self.config.n_step
+            or self.nstep.input_dim != replay.input_dim
+        ):
+            raise ValueError("checkpoint accumulator mismatch")
+        if [t.transition_id for t in self.nstep.pending] != list(
+            range(state["transitions"] - len(self.nstep.pending), state["transitions"])
+        ):
+            raise ValueError("pending transition IDs mismatch")
         self.transitions, self.rounds_trained, self.stage_position = (
             state[k] for k in ("transitions", "rounds_trained", "stage_position")
         )

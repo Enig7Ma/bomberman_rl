@@ -48,6 +48,8 @@ def save_replay(
     transitions: int,
     schema_id: str,
     exact_history: bool = True,
+    n_step: int = 1,
+    pending_count: int = 0,
 ) -> float:
     state = replay.snapshot()
     rows = state.pop("rows")
@@ -56,7 +58,9 @@ def save_replay(
         "run_id": run_id,
         "transitions": transitions,
         "schema_id": schema_id,
-        "format_version": 1,
+        "format_version": 2,
+        "n_step": n_step,
+        "pending_count": pending_count,
         "exact_history": exact_history,
     }
     return atomic_write(
@@ -73,19 +77,35 @@ def load_replay(
     with np.load(path, allow_pickle=False) as data:
         meta = json.loads(str(data["meta"].item()))
         if (
-            meta["format_version"] != 1
+            meta["format_version"] not in (1, 2)
             or meta["schema_id"] != schema_id
             or meta["run_id"] != checkpoint["run_id"]
         ):
             raise ValueError("replay identity/schema mismatch")
+        if meta.get("n_step", 1) != checkpoint.get("config", {}).get("n_step", 1):
+            raise ValueError("checkpoint/replay return horizon mismatch")
         count = meta["transitions"]
         if type(count) is not int or not 0 <= count <= checkpoint["transitions"]:
             raise ValueError("replay is newer than checkpoint or has invalid counter")
+        pending = meta.get("pending_count", 0)
+        if type(pending) is not int or not 0 <= pending < meta.get("n_step", 1):
+            raise ValueError("invalid pending count")
+        emitted = count - pending
+        if count == checkpoint["transitions"] and pending != len(
+            checkpoint.get("nstep", {}).get("pending", [])
+        ):
+            raise ValueError("checkpoint/replay pending queue mismatch")
+        if emitted < 0:
+            raise ValueError("pending exceeds transitions")
         replay = ReplayBuffer.from_snapshot({**meta, "rows": data["rows"].copy()})
         rows = replay.snapshot()["rows"]
-        if meta["exact_history"] and len(replay) != min(count, replay.capacity):
+        if (rows["k"] > meta.get("n_step", 1)).any() or (
+            rows["k"][~rows["done"]] != meta.get("n_step", 1)
+        ).any():
+            raise ValueError("replay horizon differs from configured n_step")
+        if meta["exact_history"] and len(replay) != min(emitted, replay.capacity):
             raise ValueError("replay length inconsistent with counter")
-        if meta["exact_history"] and meta["write"] != count % replay.capacity:
+        if meta["exact_history"] and meta["write"] != emitted % replay.capacity:
             raise ValueError("replay write position inconsistent with counter")
         ordered = (
             rows
@@ -97,7 +117,7 @@ def load_replay(
             and (ordered["transition_id"][1:] <= ordered["transition_id"][:-1]).any()
         ):
             raise ValueError("replay chronological order is invalid")
-        expected = np.arange(count - len(replay), count, dtype=np.uint64)
+        expected = np.arange(emitted - len(replay), emitted, dtype=np.uint64)
         if meta["exact_history"] and not np.array_equal(
             np.sort(rows["transition_id"]), expected
         ):
@@ -119,9 +139,8 @@ def load_checkpoint(path: Path) -> dict[str, Any]:
         state = cast(Any, torch).load(path, map_location="cpu", weights_only=True)
     except (pickle.UnpicklingError, EOFError, IndexError, RuntimeError) as error:
         raise ValueError(f"invalid checkpoint: {path}") from error
-    if (
-        not isinstance(state, dict)
-        or cast(dict[str, Any], state).get("format_version") != 1
-    ):
+    if not isinstance(state, dict) or cast(dict[str, Any], state).get(
+        "format_version"
+    ) not in (1, 2):
         raise ValueError("invalid checkpoint format")
     return cast(dict[str, Any], state)
