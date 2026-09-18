@@ -91,18 +91,24 @@ def summarize(
     }
 
 
-def collect(directory: Path) -> None:
+def collect(
+    directory: Path,
+    *,
+    root: Path = ROOT,
+    counts: tuple[int, ...] = COUNTS,
+    scenarios: tuple[str, ...] = ("loot-crate", "classic"),
+) -> None:
     if directory.exists():
         raise FileExistsError("use a new directory; never overwrite diagnostic games")
     models = {
         str(n): QNetwork.load(
-            ROOT / "checkpoints" / f"transition_{n:09d}" / "q_net.npz", ENCODER
+            root / "checkpoints" / f"transition_{n:09d}" / "q_net.npz", ENCODER
         )
-        for n in COUNTS
+        for n in counts
     }
     protected = [
         p
-        for p in ROOT.rglob("*")
+        for p in root.rglob("*")
         if p.is_file() and p.suffix in (".npz", ".pt", ".json", ".jsonl")
     ]
     hashes = {str(p): checksum(p) for p in protected}
@@ -110,17 +116,19 @@ def collect(directory: Path) -> None:
     dump(
         directory / "manifest.json",
         {
-            "round_cap": 24,
+            "round_cap": len(counts) * len(scenarios) * 3,
             "seeds": [500, 501, 502],
-            "counts": COUNTS,
+            "counts": counts,
+            "scenarios": scenarios,
+            "root": str(root),
             "before_sha256": hashes,
         },
     )
     original_act, original_extract = callbacks.act, Extractor.extract
     original_blast = cast(Any, Bomb).get_blast_coords
     summaries: list[dict[str, Any]] = []
-    for count in COUNTS:
-        for scenario in ("loot-crate", "classic"):
+    for count in counts:
+        for scenario in scenarios:
             for seed in (500, 501, 502):
                 trace: list[dict[str, Any]] = []
                 explosions: list[dict[str, Any]] = []
@@ -196,7 +204,7 @@ def collect(directory: Path) -> None:
                     )
                     return coords
 
-                model = ROOT / "checkpoints" / f"transition_{count:09d}" / "q_net.npz"
+                model = root / "checkpoints" / f"transition_{count:09d}" / "q_net.npz"
                 label = f"{count}_{scenario}_{seed}"
                 with (
                     environment(
