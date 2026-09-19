@@ -1,0 +1,247 @@
+{
+  "head": "af6b6f3d0cae2d9002639c9410dbdcce6bf562c9",
+  "status": "practical candidates only; strict D8 incomplete; D6/D7 failed quality gates",
+  "dqn": {
+    "directory": "results/dqn/d7_stage2_seed0_20260918/checkpoints/transition_000350346",
+    "files_sha256": {
+      "checkpoint.pt": "249ab5d1b4434a8879568d85158073e9329d1213e0c5846ec6eb4762ab9ae087",
+      "q_net.npz": "fa724eb4ebebefd2170cb15afe18289e79d023743916252c5ba4238d687c7f33",
+      "replay.npz": "1c51346089b9e4d5ea141d03763c862710f0b75dcce31cd479c0015194236eec"
+    },
+    "metadata": {
+      "mask": "best_tier",
+      "encoding": "E3",
+      "encoder": "onehot_e3",
+      "policy": "learned",
+      "seed": 0,
+      "init_seed": 0,
+      "gamma": 0.99,
+      "lr": 0.0003,
+      "batch_size": 64,
+      "replay_size": 100000,
+      "warmup": 5000,
+      "train_every": 4,
+      "target_every": 1000,
+      "grad_clip": 10.0,
+      "c_coin": 0.5,
+      "crate_aid": 0.0,
+      "death_aid": 0.0,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.05,
+      "epsilon_fraction": 0.6,
+      "stage": 1,
+      "stage_transitions": 300000,
+      "save_every": 1,
+      "replay_save_every": 50,
+      "probe_every": 10000,
+      "probe_path": "results/dqn/d6_audit_20260918/probe_v2.npz"
+    },
+    "n_step_effective": 1,
+    "transitions": 350346,
+    "updates": 86337,
+    "optimizer_lr": [
+      0.0003
+    ],
+    "replay_length": 100000,
+    "stale_replay": false,
+    "provenance": {
+      "parent_checkpoint": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d6_20260917\\pilot_lr3e-04_target1000\\run_0\\checkpoint.pt",
+      "parent_sha256": "4de4b2cfae5b0794e6ab4cc53b0c126c6d590afd057ef412013b9c47139811cd",
+      "parent_replay_sha256": "4fe49c723bd3989b00ca77b0e16aa7e2ec6be5d2b2eb2f424c1fb0a01a7c06ed",
+      "parent_config": {
+        "mask": "best_tier",
+        "encoding": "E3",
+        "encoder": "onehot_e3",
+        "policy": "learned",
+        "seed": 0,
+        "init_seed": 0,
+        "gamma": 0.99,
+        "lr": 0.0003,
+        "batch_size": 64,
+        "replay_size": 100000,
+        "warmup": 5000,
+        "train_every": 4,
+        "target_every": 1000,
+        "grad_clip": 10.0,
+        "c_coin": 0.5,
+        "crate_aid": 0.0,
+        "death_aid": 0.0,
+        "epsilon_start": 0.3,
+        "epsilon_end": 0.05,
+        "epsilon_fraction": 0.6,
+        "stage": 0,
+        "stage_transitions": 50000,
+        "save_every": 1,
+        "replay_save_every": 50,
+        "probe_every": 10000,
+        "probe_path": "results/dqn/d6_20260917/probe/probe.npz"
+      },
+      "parent_transitions": 50047,
+      "parent_updates": 11262,
+      "parent_rounds": 319,
+      "stage_offset": 1
+    }
+  },
+  "tables": [
+    {
+      "path": "agent_code/tabular_q_agent/model/q_table.npz",
+      "sha256": "ebb2056340e346813fa5a8342cb7cb7c029d476e40bc62a440d30a6b33f16e2d",
+      "metadata": {
+        "rounds_trained": 18400,
+        "steps_trained": 6586885,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.9,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.01,
+          "epsilon": 0.05,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.1,
+          "spot_potential": 0.2,
+          "teacher_share": 0.0,
+          "save_every": 50,
+          "stage": "nav-refresh",
+          "seed": 100007
+        }
+      },
+      "visited_states": 5279,
+      "provenance": "Maria Druz commit 507662ec402c059af2c05bcfd6aff67e5cfabf11; complete curriculum unavailable"
+    },
+    {
+      "path": "results/dqn/d5_throughput_20260917/tabular_q_agent/run_0/q_table.npz",
+      "sha256": "671fb1773a20d40f1d3d63564c11c57c768231306e23ac35798d21d7c9d98ac5",
+      "metadata": {
+        "rounds_trained": 9,
+        "steps_trained": 2758,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.3,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 3,
+          "stage": "opponents",
+          "seed": 100002
+        }
+      },
+      "visited_states": 320,
+      "provenance": "D5 throughput smoke, results/dqn/d5_throughput_20260917; not a final candidate"
+    },
+    {
+      "path": "results/dqn/d5_throughput_20260917/tabular_q_agent/run_0/snapshots/round_000003.npz",
+      "sha256": "9436173e103b784fa64c8d02e4acee9e000c664f36ce5df76582731be353f6bd",
+      "metadata": {
+        "rounds_trained": 3,
+        "steps_trained": 870,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.3,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 3,
+          "stage": "solo",
+          "seed": 100000
+        }
+      },
+      "visited_states": 34,
+      "provenance": "D5 throughput smoke, results/dqn/d5_throughput_20260917; not a final candidate"
+    },
+    {
+      "path": "results/dqn/d5_throughput_20260917/tabular_q_agent/run_0/snapshots/round_000006.npz",
+      "sha256": "72aab8d8089e3d5ba5eee2cfcffc8567e5b1552fa321b8fd152d70a96aa0bba0",
+      "metadata": {
+        "rounds_trained": 6,
+        "steps_trained": 1558,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.3,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 3,
+          "stage": "solo",
+          "seed": 100001
+        }
+      },
+      "visited_states": 41,
+      "provenance": "D5 throughput smoke, results/dqn/d5_throughput_20260917; not a final candidate"
+    },
+    {
+      "path": "results/dqn/d5_throughput_20260917/tabular_q_agent/run_0/snapshots/round_000009.npz",
+      "sha256": "671fb1773a20d40f1d3d63564c11c57c768231306e23ac35798d21d7c9d98ac5",
+      "metadata": {
+        "rounds_trained": 9,
+        "steps_trained": 2758,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.3,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 3,
+          "stage": "opponents",
+          "seed": 100002
+        }
+      },
+      "visited_states": 320,
+      "provenance": "D5 throughput smoke, results/dqn/d5_throughput_20260917; not a final candidate"
+    }
+  ],
+  "backups": {
+    "results/dqn/candidate_backups_20260919/dqn_stage2_q_net.npz": "fa724eb4ebebefd2170cb15afe18289e79d023743916252c5ba4238d687c7f33",
+    "results/dqn/candidate_backups_20260919/tabular_q_table.npz": "ebb2056340e346813fa5a8342cb7cb7c029d476e40bc62a440d30a6b33f16e2d"
+  },
+  "excluded": "lr1e-4, n_step3 and hunting regressions retained, not candidates",
+  "shared_modules_byte_identical": {
+    "features.py": true,
+    "mask.py": true,
+    "symmetry.py": true,
+    "core/world_model.py": true,
+    "core/safety.py": true,
+    "core/planning.py": true,
+    "core/attack.py": true,
+    "core/params.py": true
+  }
+}
