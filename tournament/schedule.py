@@ -70,6 +70,12 @@ PRESETS: dict[str, Preset] = {
         control="rule_based_agent",
         description="Course task 3 (hard): opponents that bomb only for coins.",
     ),
+    "bfs-control": Preset(
+        opponents=("rule_based_agent",) * 3,
+        scenario="classic",
+        control="bfs_agent",
+        description="Standard conditions, but paired against the strongest agent here.",
+    ),
     "mixed": Preset(
         opponents=("rule_based_agent", "coin_collector_agent", "peaceful_agent"),
         scenario="classic",
