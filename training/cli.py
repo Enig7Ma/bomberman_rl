@@ -3,7 +3,7 @@
 ::
 
     # three independent runs of one curriculum, in parallel
-    uv run python -m training run --curriculum docs/experiments/dqn_d5/smoke.json \\
+    uv run python -m training run --curriculum dev/experiments/dqn/dqn_d5/smoke.json \\
         --out results/dqn/smoke --runs 3 --jobs 3
 
     # learning curves for every run under a directory (or for one run)

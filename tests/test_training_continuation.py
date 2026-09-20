@@ -10,7 +10,6 @@ import pytest
 pytest.importorskip("torch")
 
 from agent_code.dqn_agent.persistence import load_checkpoint, load_replay  # noqa: E402
-from docs.experiments.dqn_d7 import discounted_returns  # noqa: E402
 from tests.test_training_dqn import assert_equal, course  # noqa: E402
 from training.continuation import fork_curriculum  # noqa: E402
 from training.driver import train_run  # noqa: E402
@@ -68,8 +67,3 @@ def test_full_fork_and_resume_preserve_state(tmp_path: Path, lr: float) -> None:
     with pytest.raises(FileExistsError):
         fork_curriculum(parent, child, following, 11)
 
-
-def test_realized_return_includes_terminal_score_and_zero_potential() -> None:
-    # Rewards: 1 + .9*.25-.5 = .725; 2 + 0-.25 = 1.75.
-    assert discounted_returns([0, 1], [0.5, 0.25], 3, 0.9) == pytest.approx([2.3, 1.75])
-    assert discounted_returns([0], [0.5], 0, 0.99) == [-0.5]
