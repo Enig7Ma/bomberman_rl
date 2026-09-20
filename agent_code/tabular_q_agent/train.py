@@ -14,7 +14,7 @@ Run standalone with the stock framework, for example::
 
     TABULAR_Q_AGENT_MODEL=results/tabular_q/run/q_table.npz \\
     TABULAR_Q_AGENT_METRICS=results/tabular_q/run/metrics.jsonl \\
-    python main.py play --no-gui --agents tabular_q_agent --train 1 \\
+    uv run python main.py play --no-gui --agents tabular_q_agent --train 1 \\
         --scenario coin-heaven --n-rounds 100
 
 Without ``TABULAR_Q_AGENT_MODEL`` the table in ``model/q_table.npz`` is

@@ -1,4 +1,4 @@
-"""D2: canonical E3 inputs and masked NumPy Q-network inference.
+"""Play callbacks: canonical E3 inputs and masked NumPy Q-network inference.
 
 Missing/broken default weights fall back to safe-random with an error log.
 Explicit model paths are strict; policy="random" remains the control.

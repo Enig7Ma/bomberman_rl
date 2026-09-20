@@ -1,4 +1,8 @@
-"""Opt-in D2 tracing of actual decisions and execution; no extra RNG draws."""
+"""Trace one evaluation round: the decisions taken and how they executed.
+
+A helper for ``dqn_d2``'s ``--diagnose-model``, not a standalone script. The
+patched callbacks only observe, so they consume no extra RNG draws.
+"""
 
 import hashlib
 import json

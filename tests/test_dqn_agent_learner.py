@@ -1,4 +1,4 @@
-"""D3 learning tests; Torch is optional, but installed runs execute all cases."""
+"""Double DQN learner tests; Torch is optional, but installed runs execute all cases."""
 
 import random
 from dataclasses import replace

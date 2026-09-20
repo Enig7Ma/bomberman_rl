@@ -1,4 +1,11 @@
-"""Bounded D4 stock-framework smoke (50 rounds), not a curriculum driver."""
+"""Smoke-test the training callbacks over 50 rounds of the stock framework.
+
+Trains ``dqn_agent`` through ``main.py play`` in a fresh output directory and
+checks what it saved. This is a smoke test, not a curriculum driver. Run from
+the repository root::
+
+    uv run python -m docs.experiments.dqn_d4_smoke --output results/dqn/d4_smoke
+"""
 
 import argparse
 import json

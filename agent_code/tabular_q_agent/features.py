@@ -1,7 +1,7 @@
 """Categorical features of an observation, and their encoding as a table index.
 
-Plan: ``dev/tabiular_q-learning.md`` §5.3. Every feature is a small integer
-computed from the observation alone -- no hidden coins, no bomb owners:
+Every feature is a small integer computed from the observation alone -- no
+hidden coins, no bomb owners:
 
 - ``mask``: bit ``i`` set when ``ACTIONS[i]`` is allowed by the safety mask.
 - ``coin_dir``: first step towards the nearest reachable visible coin;
@@ -23,11 +23,11 @@ Other agents do not block these walks, as in ``bfs_agent``'s planning: they
 will have moved by the time we arrive, and the mask already vets the first
 step. When several first steps are equally short, one is picked with the
 agent's private RNG, never by neighbour order, so the features carry no
-orientation bias -- the board symmetries of plan §5.4 rely on that.
+orientation bias -- the board symmetries in ``symmetry`` rely on that.
 
-All three direction fields have a ``HERE`` value, which the plan's table gave
-only ``crate_dir``: without it, "in position" and "no target" coincide for
-``opp_dir``, and a coin underfoot could not be encoded at all.
+All three direction fields have a ``HERE`` value, not only ``crate_dir``:
+without it, "in position" and "no target" would coincide for ``opp_dir``, and
+a coin underfoot could not be encoded at all.
 """
 
 import hashlib
@@ -226,10 +226,10 @@ class Extracted:
     # Best safety tier over the legal actions; 0 means no known escape.
     best_tier: int
     # Walking distance to the nearest reachable visible coin, for the coin
-    # potential of plan §5.7; None if there is none.
+    # coin potential; None if there is none.
     coin_distance: int | None
     # Walking distance to the bombing spot ``crate_dir`` points to, for the
-    # spot potential (Q7); None without a spot or outside the encoding.
+    # spot potential; None without a spot or outside the encoding.
     crate_distance: int | None
     # Live crates a bomb dropped here would destroy, uncapped (``bomb_yield``
     # is this capped at 3); for the ``bomb_aid`` training aid.

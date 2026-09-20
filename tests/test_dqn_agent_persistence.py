@@ -1,4 +1,4 @@
-"""D4 weight-only loading, replay consistency, atomic writes and probe checks."""
+"""Weight-only loading, replay consistency, atomic writes and probe checks."""
 
 import json
 import pickle

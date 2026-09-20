@@ -1,10 +1,10 @@
 """Masked epsilon-greedy selection and the one-step Q-learning update.
 
-Plan ``dev/tabiular_q-learning.md`` §5.6. Everything here works on canonical
-state indices and table columns; ``callbacks`` translates real actions with
-``symmetry`` first. ``allowed`` is always the safety mask, and the same mask
-is used for exploration, for greedy selection and inside the maximum of the
-target -- otherwise the values would describe a policy that is never played.
+Everything here works on canonical state indices and table columns;
+``callbacks`` translates real actions with ``symmetry`` first. ``allowed`` is
+always the safety mask, and the same mask is used for exploration, for greedy
+selection and inside the maximum of the target -- otherwise the values would
+describe a policy that is never played.
 
     delta = r + gamma * max_{b in allowed(s')} Q[s', b] - Q[s, a]
     Q[s, a] += alpha(s, a) * delta
@@ -14,7 +14,7 @@ with ``alpha(s, a) = max(alpha_min, (1 + n[s, a]) ** -omega)`` and no bootstrap
 term when ``s'`` is terminal.
 
 The first update of a state-action therefore sets it straight to its target.
-``r`` is whatever the caller passes, shaping term included (plan §5.7).
+``r`` is whatever the caller passes, shaping term included (see ``rewards``).
 """
 
 import random

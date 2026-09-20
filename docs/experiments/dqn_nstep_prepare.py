@@ -1,4 +1,13 @@
-"""Prepare/audit a D6 -> n_step=3 fork, without running games or updates."""
+"""Fork a finished run into an ``n_step=3`` continuation and audit the copy.
+
+Copies the parent's full state, applies the curriculum's parameter change and
+checks the result; it plays no games and performs no updates. The parent is
+read-only. Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_nstep_prepare \\
+        --parent results/dqn/d6/lr3e-04 --out results/dqn/nstep3 \\
+        --config docs/experiments/dqn_d10_nstep3.json
+"""
 
 import argparse
 import hashlib

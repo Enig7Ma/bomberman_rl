@@ -1,4 +1,13 @@
-"""Bounded D7 stage 2: full-state continuation, probes and explicit inference."""
+"""Continue a navigation run into the crate stage from its full saved state.
+
+Drives the curriculum in ``CONFIG``, measures the probe at each chunk boundary
+and evaluates the archived weights through explicit NumPy inference.
+``--smoke`` shortens the run to a plumbing check. Run from the repository
+root::
+
+    uv run python -m docs.experiments.dqn_d7 --out results/dqn/crate_stage
+    uv run python -m docs.experiments.dqn_d7 --out results/dqn/d7_smoke --smoke
+"""
 
 import argparse
 import json
@@ -63,7 +72,7 @@ def discounted_returns(
 
 
 def evaluate(model: Path, directory: Path) -> list[dict[str, Any]]:
-    """Thirty solo rounds, NumPy only, same validation maps as D6."""
+    """Thirty solo rounds, NumPy only, on the parent run's validation maps."""
     expected = QNetwork.load(model, ENCODER)
     original = callbacks.setup
     original_act, original_extract = callbacks.act, Extractor.extract
@@ -187,7 +196,7 @@ def evaluate(model: Path, directory: Path) -> list[dict[str, Any]]:
                 "all50_rounds": sum(r.focus.coins == 50 for r in results),
                 "bombs_per_action": totals["bombs"] / total_steps,
                 "invalid_per_action": totals["invalid"] / total_steps,
-                "stage2_pass": totals["coins"] / n > 43.05 and totals["suicides"] == 0
+                "quality_pass": totals["coins"] / n > 43.05 and totals["suicides"] == 0
                 if preset == "crates-solo"
                 else None,
             }

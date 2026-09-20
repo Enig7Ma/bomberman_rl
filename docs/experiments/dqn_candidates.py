@@ -1,4 +1,11 @@
-"""Bounded practical validation; no training or replacement of shipped weights."""
+"""Play the archived candidate networks over a fixed set of validation games.
+
+Reads the candidate manifest, plays every candidate on the same maps with the
+same opponent streams, and writes the per-round results. It never trains and
+never replaces the shipped weights. Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_candidates --out results/dqn/candidates
+"""
 
 import argparse
 import hashlib

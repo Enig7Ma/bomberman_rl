@@ -1,4 +1,4 @@
-"""Engine-driven tests of ``tabular_q_agent``'s training callbacks (plan Q4).
+"""Engine-driven tests of ``tabular_q_agent``'s training callbacks.
 
 These run the real engine, so they check the bookkeeping against what the
 framework actually delivers rather than against this code's reading of it:
@@ -115,9 +115,11 @@ def test_a_kill_after_death_is_credited_to_the_death_transition(
 def test_rewards_add_up_to_the_engine_score_in_real_games(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Plan Q-S6, over rounds against three rule_based agents with exploration
-    on. Each round builds a new world, which reloads the table the previous
-    round saved -- so the counters must continue across worlds too."""
+    """Rounds against three rule_based agents with exploration on.
+
+    Each round builds a new world, which reloads the table the previous round
+    saved -- so the counters must continue across worlds too.
+    """
     rounds = 8
     _, metrics = training_env(monkeypatch, tmp_path, epsilon=0.3)
     lineup = ("tabular_q_agent",) + ("rule_based_agent",) * 3

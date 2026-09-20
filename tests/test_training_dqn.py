@@ -1,4 +1,4 @@
-"""D5: real worlds, full chunk saves, independent spawned runs and inference."""
+"""Real worlds, full chunk saves, independent spawned runs and inference."""
 
 import copy
 import importlib

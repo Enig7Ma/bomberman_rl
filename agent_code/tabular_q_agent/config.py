@@ -5,9 +5,8 @@ The tournament harness can only name an agent directory, so a sweep sets
 it; worker processes inherit the environment. When the variable is unset --
 always the case under the official framework -- the frozen defaults apply.
 
-Fields are added in the plan step that first uses them
-(``dev/tabiular_q-learning.md``); unknown keys are rejected so a typo in a
-sweep fails loudly instead of silently running the defaults.
+Unknown keys are rejected, so a typo in a sweep fails loudly instead of
+silently running the defaults.
 
 Relative paths in ``TABULAR_Q_AGENT_MODEL`` and ``TABULAR_Q_AGENT_METRICS`` are
 taken from the repository root. The framework only runs from there, and it
@@ -42,15 +41,15 @@ DEFAULT_MODEL_PATH = AGENT_DIR / "model" / "q_table.npz"
 METRICS_ENV_VAR = f"{ENV_PREFIX}_METRICS"
 DEFAULT_METRICS_PATH = AGENT_DIR / "logs" / "train_metrics.jsonl"
 
-# Which state abstraction to use (plan §5.3); ``features.ENCODINGS`` defines
+# Which state abstraction to use; ``features.ENCODINGS`` defines
 # them. E3 is the submission's; E1 and E2 are small enough to debug by hand.
 EncodingName = Literal["E1", "E2", "E3"]
 ENCODING_NAMES: tuple[EncodingName, ...] = get_args(EncodingName)
 
 # How ``act`` chooses: from the Q-table, uniformly over the mask (the
-# safe-random control of plan step Q0), or by the fixed priority of
-# ``heuristic`` on the same features (the hand-tuned control of plan §5.9).
-# The two controls ignore the table for acting.
+# safe-random control), or by the fixed priority of ``heuristic`` on the same
+# features (the hand-tuned control). The two controls ignore the table for
+# acting.
 Policy = Literal["learned", "random", "heuristic"]
 POLICIES: tuple[Policy, ...] = get_args(Policy)
 
@@ -104,10 +103,10 @@ class Config:
     mask: MaskVariant = "best_tier"
     encoding: EncodingName = "E3"
     policy: Policy = "learned"
-    # Share one table row between board rotations and reflections (plan §5.4).
-    # False indexes the raw features: the ablation of plan step Q10.
+    # Share one table row between board rotations and reflections.
+    # False indexes the raw features, as an ablation.
     symmetry: bool = True
-    # Discount of the Q-learning target and of the shaping term (plan §5.6).
+    # Discount of the Q-learning target and of the shaping term.
     gamma: float = 0.99
     # Step size ``max(alpha_min, (1 + visits) ** -alpha_omega)``: polynomial
     # decay per state-action, with a floor so values keep tracking opponents
@@ -116,25 +115,25 @@ class Config:
     alpha_min: float = 0.05
     # Probability of a uniform allowed action while training; 0 outside
     # training regardless. Constant for one agent's lifetime: the training
-    # driver (plan Q5) lowers it between chunks of rounds.
+    # driver lowers it between chunks of rounds.
     epsilon: float = 0.1
     # Potential shaping ``c / (1 + d)`` on the walking distance ``d`` to the
-    # nearest visible coin (plan §5.7); 0 turns it off.
+    # nearest visible coin; 0 turns it off.
     coin_potential: float = 0.5
-    # Objective-changing training aids (plan §5.7), off by default: a reward
+    # Objective-changing training aids, off by default: a reward
     # per crate destroyed, and one once per death (negative for a penalty).
     crate_aid: float = 0.0
     death_aid: float = 0.0
     # Objective-changing aid paid on the BOMB action itself, per live crate the
-    # dropped bomb will destroy (only when the engine confirms the drop). Q7:
+    # dropped bomb will destroy (only when the engine confirms the drop):
     # without an immediate payoff for demolition the table cannot tell moving
     # towards a bombing spot from waiting; a bomb for nothing earns nothing.
     bomb_aid: float = 0.0
     # Potential shaping ``c / (1 + d)`` on the distance to the best bombing spot
-    # (Q7), added to the coin potential; 0 turns it off. Use with ``bomb_aid``.
+    # added to the coin potential; 0 turns it off. Use with ``bomb_aid``.
     spot_potential: float = 0.0
     # Share of training steps played by ``heuristic`` instead of the table
-    # (plan Q11, teacher-guided exploration). Q-learning is off-policy, so the
+    # (teacher-guided exploration). Q-learning is off-policy, so the
     # table still learns the values of its own greedy policy, from data the
     # better policy collected. 0 outside training regardless.
     teacher_share: float = 0.0

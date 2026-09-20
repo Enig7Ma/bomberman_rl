@@ -1,4 +1,4 @@
-"""D6 experimental protocol: fixed probes, complete outcomes, strict inference."""
+"""Navigation-experiment protocol: fixed probes, complete outcomes, strict inference."""
 
 import json
 from pathlib import Path
@@ -134,7 +134,7 @@ def test_actual_save_hook_measures_initial_snapshot_and_stops_bad_q(
     out = tmp_path / "run"
     summary = run(path, out, 0)
     if unstable:
-        assert "D-S7" in summary["failure"]
+        assert "Q is nonfinite" in summary["failure"]
         assert summary["transitions"] == 0
         assert (out / "failure.txt").exists()
         assert not (out / "checkpoint.pt").exists()

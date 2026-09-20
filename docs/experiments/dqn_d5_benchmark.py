@@ -1,6 +1,8 @@
-"""Short, one-process measurements; use a NEW output directory each time.
+"""Measure training throughput in one process; use a NEW output directory each time.
 
-python -m docs.experiments.dqn_d5_benchmark --out results/dqn/d5_throughput
+Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_d5_benchmark --out results/dqn/d5_throughput
 
 End-to-end time includes interpreter/Torch startup, warm-up, all saves and
 snapshots. Round time (metrics) excludes setup and final chunk saves, but includes

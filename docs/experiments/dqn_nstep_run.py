@@ -1,4 +1,11 @@
-"""One predeclared 3-step comparison; existing D7 driver, evaluation and stops."""
+"""Train the prepared ``n_step=3`` fork and evaluate it against its control.
+
+Reuses the existing driver, evaluation presets and stopping rules, so only the
+return length differs from the run it is compared against. Run from the
+repository root::
+
+    uv run python -m docs.experiments.dqn_nstep_run --out results/dqn/nstep3
+"""
 
 import argparse
 import json
@@ -60,7 +67,7 @@ def run(directory: Path) -> None:
                     "name": [control.name, course.name],
                 },
                 "primary": "final mean loot coins vs 28.4 on seeds 500-509",
-                "stage2_pass": "loot mean >43.05 and zero suicides in 10 rounds",
+                "quality_pass": "loot mean >43.05 and zero suicides in 10 rounds",
                 "secondary": [
                     "coin-heaven retention",
                     "classic coins",
@@ -71,7 +78,7 @@ def run(directory: Path) -> None:
                 "training_seed": 0,
                 "initial_learner_rng_identical": True,
                 "before_sha256": protected,
-                "initial_evaluation": "reuse original D6 after checking every weight",
+                "initial_evaluation": "reuse the parent's, after checking every weight",
                 "stop": "nonfinite Q or abs(Q)>50; no automatic retry",
             },
         )

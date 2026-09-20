@@ -1,26 +1,26 @@
-"""The rewards the table learns from (plan ``dev/tabiular_q-learning.md`` §5.7).
+"""The rewards a transition is worth: engine score, optional aids and shaping.
 
 A transition's reward has three parts:
 
 - **base**: the engine's own score delta, ``REWARD_COIN`` per
   ``COIN_COLLECTED`` and ``REWARD_KILL`` per ``KILLED_OPPONENT``, counting every
   occurrence. It is exactly what the tournament totals, so summed over a round
-  it must equal the agent's final score (the Q4 engine tests check this).
+  it must equal the agent's final score (the engine-driven tests check this).
 - **aids** (objective-changing, off by default): ``crate_aid`` per
   ``CRATE_DESTROYED`` and ``death_aid`` once per death. A suicide reports both
   ``KILLED_SELF`` and ``GOT_KILLED``, which still counts as one death. Bomb
   drops, waiting and invalid moves are never rewarded: bombing for reward is an
   easy exploit, waiting is often right, and invalid moves are mostly lost races
-  for a tile. The one exception, ``bomb_aid`` (added in Q7), is conditional: it
-  is paid per live crate a confirmed bomb will destroy, so a useless bomb still
-  earns nothing.
+  for a tile. The one exception, ``bomb_aid``, is conditional: it is paid per
+  live crate a confirmed bomb will destroy, so a useless bomb still earns
+  nothing.
 - **shaping**: ``gamma * phi(s') - phi(s)`` with the coin potential
   ``phi = coin_potential / (1 + d)``, ``d`` the walking distance to the nearest
   visible coin and ``phi = 0`` when there is none or ``s'`` is terminal. As a
   function of the full observation it is a true potential of the game, so it
   does not change which policies are optimal (Ng et al., 1999). A second
-  potential of the same form on the distance to the best bombing spot
-  (``spot_potential``, added in Q7) is off by default.
+  potential of the same form, on the distance to the best bombing spot
+  (``spot_potential``), is off by default.
 """
 
 from collections.abc import Sequence

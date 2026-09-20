@@ -1,4 +1,4 @@
-"""D0 safe-random behavior on diagnostic boards and the real engine."""
+"""Safe-random fallback behavior on diagnostic boards and the real engine."""
 
 import inspect
 import json

@@ -1,7 +1,11 @@
-"""Post-D6 audit: 80 planned collection rounds, hard cap 100; no training.
+"""Audit a finished navigation run: build a wider probe and re-read its metrics.
 
-python -m docs.experiments.dqn_d6_audit
-Re-running reads the cached collection instead of playing more rounds.
+Collects at most 100 rounds of probe states (target 80), then reports probe
+measurements, loss windows and target-sync rounds as CSV. It never trains, and
+re-running reads the cached collection instead of playing more rounds. Paths
+are fixed in ``ROOT`` and ``REPORT``. Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_d6_audit
 """
 
 import csv

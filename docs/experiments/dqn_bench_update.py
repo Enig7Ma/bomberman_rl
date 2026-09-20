@@ -1,4 +1,11 @@
-"""Reproducible D3 CPU update benchmark; run as a module from repo root."""
+"""Measure the wall time of one CPU learner update, with machine provenance.
+
+Writes a single JSON report and refuses to overwrite it. Run from the
+repository root::
+
+    uv run python -m docs.experiments.dqn_bench_update \\
+        --output results/dqn/bench_update.json
+"""
 
 import argparse
 import json

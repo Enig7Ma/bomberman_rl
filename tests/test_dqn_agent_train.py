@@ -1,4 +1,4 @@
-"""D4 accounting and exact round-boundary resume against the real engine."""
+"""Training accounting and exact round-boundary resume against the real engine."""
 
 import copy
 import json

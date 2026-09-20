@@ -1,6 +1,6 @@
 """tabular_q_agent: tabular Q-learning over a compact abstract state.
 
-Implements ``dev/tabiular_q-learning.md``. Each step:
+Each step:
 
 1. ``features.Extractor`` grades every legal action with the safety search
    copied from ``bfs_agent`` (``core/``) and derives the action mask and the
@@ -15,10 +15,10 @@ in ``TABULAR_Q_AGENT_MODEL``. In training mode (``train.py``) the agent also
 explores with probability ``epsilon`` and hands every step to a
 ``transitions.Trainer``, which turns the framework's callbacks into Q-updates.
 Outside training it never explores and never writes. ``policy="random"``
-keeps the safe-random control of step Q0 and ``policy="heuristic"`` the
-hand-ordered control of §5.9: both ignore the table for acting (it still
-learns off-policy when training). ``teacher_share`` mixes heuristic actions
-into training only, as the plan's teacher-guided exploration (Q11).
+keeps the safe-random control and ``policy="heuristic"`` plays the
+fixed-priority control in ``heuristic``: both ignore the table for acting (it
+still learns off-policy when training). ``teacher_share`` mixes heuristic
+actions into training only, as teacher-guided exploration.
 
 The framework imports this module as ``agent_code.tabular_q_agent.callbacks``
 and calls each function with a ``types.SimpleNamespace`` as ``self``. It only

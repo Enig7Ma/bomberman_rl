@@ -1,6 +1,10 @@
-"""Bounded inference controls: 3 policies x 2 scenarios x 10 paired maps = 60.
+"""Play the control policies over a fixed board set, 60 rounds in all.
 
-No training imports, no new heuristic, no mutation of source artifacts.
+Three policies x two scenarios x ten paired maps. Inference only: no training
+imports, no new heuristic, no mutation of source artifacts. Run from the
+repository root::
+
+    uv run python -m docs.experiments.dqn_controls --out results/dqn/controls
 """
 
 import argparse

@@ -1,7 +1,14 @@
-"""D2 only: evaluate one untrained NumPy network, sequentially (jobs=1).
+"""Evaluate one untrained NumPy network, sequentially (jobs=1).
 
-Run from the repository root with ``python -m docs.experiments.dqn_d2
---output results/dqn/d2_random_20260916``. Refuses to overwrite an existing run.
+Refuses to overwrite an existing run directory. ``--diagnose-model`` adds a
+traced single-round diagnosis of the given weights. Run from the repository
+root::
+
+    uv run python -m docs.experiments.dqn_d2 --output results/dqn/d2_random
+
+    uv run python -m docs.experiments.dqn_d2 --output results/dqn/d2_diagnosed \\
+        --diagnose-model results/dqn/d2_random/random_init_q_net.npz \\
+        --diagnose-seed 506
 """
 
 import argparse
@@ -49,7 +56,7 @@ def evaluate(output: Path, name: str, seed_set: range, model: Path) -> dict[str,
                     net = agent.q_function
                     assert not agent.train and agent.config.policy == "learned"
                     assert agent.model_file == model and isinstance(net, QNetwork)
-                    assert net.meta["stage"] == "D2-untrained"
+                    assert net.meta["stage"] == "untrained"
                     loaded += 1
                     records = instrument_world(world)
                     world.new_round()
@@ -119,7 +126,7 @@ def main() -> None:
     net = QNetwork.random(OneHotE3(), config.init_seed)
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
     net.meta.update(
-        {"config": asdict(config), "stage": "D2-untrained", "git_commit": commit}
+        {"config": asdict(config), "stage": "untrained", "git_commit": commit}
     )
     model = output / "random_init_q_net.npz"
     net.save(model)

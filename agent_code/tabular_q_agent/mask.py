@@ -17,7 +17,7 @@ from typing import Literal, get_args
 
 from .core.safety import Assessment, safest
 
-# Which safety tiers the agent may choose from (plan §5.2): the best tier
+# Which safety tiers the agent may choose from: the best tier
 # available, anything that survives static opponents (tier >= 2), anything with
 # some known escape (tier >= 1), or every legal action.
 MaskVariant = Literal["best_tier", "min_tier_2", "any_escape", "legal"]

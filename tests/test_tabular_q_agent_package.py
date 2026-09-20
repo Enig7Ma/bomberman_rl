@@ -1,4 +1,4 @@
-"""The submitted agent directory must stand alone (plan step Q12).
+"""The submitted agent directory must stand alone.
 
 The organisers copy one directory into their own checkout of the framework and
 run it with ``self.train = False``. So ``callbacks`` may only pull in the
@@ -6,8 +6,8 @@ standard library, numpy and the framework's own modules -- never this
 repository's ``tournament``, ``training`` or ``dev`` code, and never
 ``bfs_agent`` (its code is *copied* into ``core/``).
 
-The table itself is checked once it ships; until then those tests skip, so the
-suite stays green while Q12 is still open.
+The shipped table is checked when it is present; the tests that need it skip
+when it is not, so the suite stays green on a checkout without one.
 """
 
 import json
@@ -133,14 +133,14 @@ def test_setup_is_fast_enough(imported: dict[str, Any]) -> None:
     assert imported["elapsed"] < 60.0, imported
 
 
-@pytest.mark.skipif(not MODEL.exists(), reason="no Q-table shipped yet (plan step Q12)")
+@pytest.mark.skipif(not MODEL.exists(), reason="no Q-table shipped")
 def test_the_shipped_table_is_trained(imported: dict[str, Any]) -> None:
     assert imported["visited_states"] > 0
     assert imported["policy"] == "learned"
     assert MODEL.stat().st_size < 20 * 1024 * 1024
 
 
-@pytest.mark.skipif(not MODEL.exists(), reason="no Q-table shipped yet (plan step Q12)")
+@pytest.mark.skipif(not MODEL.exists(), reason="no Q-table shipped")
 def test_the_shipped_table_matches_the_default_encoding(
     imported: dict[str, Any],
 ) -> None:

@@ -1,4 +1,4 @@
-"""NumPy-only Q-function and portable, validated inference weights (D2)."""
+"""NumPy-only Q-function and portable, validated inference weights."""
 
 import json
 import math

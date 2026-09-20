@@ -1,4 +1,11 @@
-"""One diagnostic stage3 run; unchanged driver/agent, controlled evaluation RNG."""
+"""Continue a trained run into the hunting curriculum in ``CONFIG``, once.
+
+The driver and the agent are unchanged; only the evaluation RNG and the
+opponent streams are pinned, so the measured presets are comparable. Run from
+the repository root::
+
+    uv run python -m docs.experiments.dqn_d7_hunting --out results/dqn/d7_hunting
+"""
 
 import argparse
 import importlib
@@ -266,7 +273,8 @@ def run(directory: Path) -> None:
             out / "protocol.json",
             {
                 "deviation": (
-                    "stage2 quality gate failed; user authorized one diagnostic stage3"
+                    "the crate stage missed its quality criterion; this hunting "
+                    "continuation was run anyway, as a single diagnostic"
                 ),
                 "parent_files": protected,
                 "parent_transitions": ORIGIN,

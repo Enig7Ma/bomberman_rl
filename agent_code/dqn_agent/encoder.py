@@ -1,4 +1,4 @@
-"""Lossless numeric inputs for the DQN (D1: the table's E3 information only).
+"""Lossless numeric inputs for the DQN, carrying the table's E3 information only.
 
 Canonicalisation belongs to the caller: ``index, g = canonical(f, E3)`` then
 ``encode(E3.decode(index), extracted)``. The encoder does not choose a symmetry

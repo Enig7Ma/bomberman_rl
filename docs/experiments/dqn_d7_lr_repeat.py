@@ -1,4 +1,13 @@
-"""One authorized stage2 LR comparison, using the original driver and evaluation."""
+"""Repeat the crate-stage run at a different learning rate, changing nothing else.
+
+Uses the curriculum in ``CONFIG`` with the original driver and evaluation, so
+the result is comparable to the run it repeats. ``--resume`` continues an
+interrupted attempt in the same directory. Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_d7_lr_repeat --out results/dqn/d7_lr1e4
+    uv run python -m docs.experiments.dqn_d7_lr_repeat --out results/dqn/d7_lr1e4 \\
+        --resume
+"""
 
 import argparse
 import copy
@@ -55,7 +64,7 @@ def run(directory: Path) -> None:
         trainer = fork_curriculum(parent, destination, course, seed)
         stored = load_checkpoint(parent / "checkpoint.pt")
         # configure_stage already assigns LR after restoring Adam. Assign explicitly
-        # here too, then compare every other optimizer/learner field with D6.
+        # here too, then compare every other optimizer/learner field with the parent.
         for group in trainer.learner.optimizer.param_groups:
             group["lr"] = 1e-4
         expected_learner = copy.deepcopy(stored["learner"])

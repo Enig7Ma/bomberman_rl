@@ -1,7 +1,7 @@
 """A fixed-priority policy on the agent's own features: the hand-tuned control.
 
-Plan ``dev/tabiular_q-learning.md`` §5.9. The learned table sees exactly these
-features and this mask; the heuristic ranks them by hand instead of learning:
+The learned table sees exactly these features and this mask; the heuristic
+ranks them by hand instead of learning:
 
 1. a coin: ``WAIT`` on a coin underfoot, else the move ``coin_dir`` names;
 2. ``BOMB``, if a bomb here pressures or traps an opponent or destroys a crate;

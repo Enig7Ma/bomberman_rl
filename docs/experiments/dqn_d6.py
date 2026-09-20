@@ -1,7 +1,16 @@
-"""D6 navigation experiment; no changes to rewards, features or learning rules.
+"""Navigation experiment: collect a probe, train pilots, evaluate and select.
 
-Run as python -m docs.experiments.dqn_d6; all game runs use the existing harness.
-The save-hook wrapper only measures probes and archives completed full saves.
+All game runs use the existing training harness; rewards, features and learning
+rules are untouched. The save-hook wrapper only measures probes and archives
+completed full saves. Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_d6 collect --out results/dqn/d6
+    uv run python -m docs.experiments.dqn_d6 run --out results/dqn/d6/lr3e-04 \\
+        --config docs/experiments/dqn_d6/lr3e-04_target1000.json --seed 0
+    uv run python -m docs.experiments.dqn_d6 evaluate --out results/dqn/d6/lr3e-04
+    uv run python -m docs.experiments.dqn_d6 select \\
+        --out results/dqn/d6/selection.json \\
+        --pilots results/dqn/d6/lr3e-04 results/dqn/d6/lr1e-04
 """
 
 import argparse
@@ -412,7 +421,7 @@ def run(config_path: Path, directory: Path, seed: int) -> dict[str, Any]:
 
 
 def select(directories: list[Path]) -> dict[str, Any]:
-    """Preregistered final-snapshot ranking; deterministic combination-order tie."""
+    """Rank the pilots by their final snapshot, breaking ties by combination order."""
     rows = [json.loads((p / "run_summary.json").read_text()) for p in directories]
     eligible = [r for r in rows if r["stable"]]
     if not eligible:

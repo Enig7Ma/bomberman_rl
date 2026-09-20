@@ -1,4 +1,4 @@
-"""Tests for what Q7-Q10 added to ``tabular_q_agent``.
+"""Tests for ``tabular_q_agent``'s optional aids, controls and raw indices.
 
 - ``bomb_aid``: paid once per confirmed bomb, per live crate it will destroy;
 - ``policy="heuristic"``: the fixed-priority control plays from the agent;
@@ -215,7 +215,7 @@ def test_without_symmetry_the_table_is_indexed_by_raw_features(
     assert draws(shared, state) != {"RIGHT"}  # that row means something else there
 
 
-# --- teacher-guided exploration (Q11) -------------------------------------------------
+# --- teacher-guided exploration -------------------------------------------------------
 
 
 def make_training_self(

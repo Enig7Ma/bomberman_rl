@@ -6,11 +6,10 @@ opponent -- the tournament scores that kill -- but training never sees it.
 Playing the round out with ``--continue-without-training`` fixes that at the
 cost of up to ~390 steps of other agents' play per death.
 
-``TrainingWorld`` sits in between (plan ``dev/tabiular_q-learning.md`` §5.8,
-fact E5): once no training agent is alive, the round stops as soon as no bomb
-and no *dangerous* explosion owned by a training agent remains. Every other
-stopping condition of the engine is unchanged. The dead learner's final
-``end_of_round`` then carries the posthumous events.
+``TrainingWorld`` sits in between: once no training agent is alive, the round
+stops as soon as no bomb and no *dangerous* explosion owned by a training
+agent remains. Every other stopping condition of the engine is unchanged. The
+dead learner's final ``end_of_round`` then carries the posthumous events.
 """
 
 import logging

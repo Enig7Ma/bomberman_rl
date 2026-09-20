@@ -1,4 +1,26 @@
-"""D4 training callbacks, replay sink and round-boundary save hook."""
+"""Training callbacks, replay sink and round-boundary save hook.
+
+``setup_training`` is called once after ``callbacks.setup``. Per round, the
+engine then calls ``game_events_occurred`` after every step the agent survives
+and ``end_of_round`` exactly once at the end; ``bookkeeping.Bookkeeper`` turns
+that delivery into completed transitions, which are pushed through ``nstep``
+into the replay buffer and learned from by ``learner.Learner``. At a round
+boundary the trainer appends the round's record to ``DQN_AGENT_METRICS``,
+exports NumPy inference weights and -- every ``replay_save_every`` rounds --
+writes the full checkpoint and replay as well. A driver that manages saving
+itself sets ``managed_saves`` and takes over those boundaries.
+
+Run standalone with the stock framework, for example::
+
+    DQN_AGENT_MODEL=results/dqn/run/q_net.npz \\
+    DQN_AGENT_METRICS=results/dqn/run/metrics.jsonl \\
+    uv run python main.py play --no-gui --agents dqn_agent --train 1 \\
+        --scenario coin-heaven --n-rounds 100
+
+Without ``DQN_AGENT_MODEL`` the weights in ``model/q_net.npz`` are trained in
+place. The stock framework ends a round when the learner dies, so kills scored
+after death are lost there; ``training.world.TrainingWorld`` keeps them.
+"""
 
 import time
 import uuid
@@ -175,7 +197,7 @@ class Trainer:
             self.update_stats.append(stats)
             check_q(self.learner.online.values(observed.state))
             if stats.updates % self.config.probe_every == 0:
-                record = {"updates": stats.updates, "status": "not-collected-D6"}
+                record = {"updates": stats.updates, "status": "not-collected"}
                 if self.probe is not None:
                     record = {
                         "updates": stats.updates,
@@ -225,7 +247,7 @@ class Trainer:
             else None,
             "wall_time": time.perf_counter() - self.started,
             "probe": self.probe_records,
-            "probe_status": "ready" if self.probe is not None else "not-collected-D6",
+            "probe_status": "ready" if self.probe is not None else "not-collected",
             "resume_mode": self.resume_mode,
             "exact_history": self.exact_history,
         }

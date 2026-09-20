@@ -1,4 +1,4 @@
-"""Replay ownership, FIFO replacement and reward recomputation (D3 part 1)."""
+"""Replay ownership, FIFO replacement and reward recomputation."""
 
 from dataclasses import fields, replace
 from typing import Any, cast

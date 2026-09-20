@@ -1,7 +1,6 @@
-"""Tabular sink for the shared callback bookkeeping (plan §5.8).
+"""Tabular sink for the shared callback bookkeeping: rewards, updates, metrics.
 
-The engine reports the consequences of a step in two different ways (plan §4,
-facts E1-E4):
+The engine reports the consequences of a step in two different ways:
 
 - a *surviving* agent gets ``game_events_occurred`` after every step,
   including the last; on the last step ``end_of_round`` then repeats that

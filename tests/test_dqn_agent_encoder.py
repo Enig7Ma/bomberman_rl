@@ -1,4 +1,4 @@
-"""Lossless E3 inputs, schema compatibility and canonical consistency (D1)."""
+"""Lossless E3 inputs, schema compatibility and canonical consistency."""
 
 import random
 from dataclasses import replace

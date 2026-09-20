@@ -1,8 +1,15 @@
-"""Read-only D7 audit: 24 diagnostic games, no learner or training callbacks.
+"""Diagnose four archived policies over 24 read-only games.
 
-Four archived policies, loot-crate/classic solo, paired maps 500..502.
-The collector observes actual extraction once, so it consumes no agent RNG.
-Engine blast attribution is recorded outside the policy, never passed to it.
+No learner and no training callbacks: loot-crate/classic solo on paired maps
+500..502. The collector observes actual extraction once, so it consumes no
+agent RNG, and engine blast attribution is recorded outside the policy, never
+passed to it. Run from the repository root::
+
+    uv run python -m docs.experiments.dqn_d7_diagnose --out results/dqn/d7_diag
+
+    # re-report from data already written, without playing
+    uv run python -m docs.experiments.dqn_d7_diagnose --out results/dqn/d7_diag \\
+        --analyze
 """
 
 import argparse

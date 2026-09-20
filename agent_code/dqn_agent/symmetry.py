@@ -1,10 +1,10 @@
 """Board symmetries: canonical states and the matching action mapping.
 
-Plan ``dev/tabiular_q-learning.md`` §5.4. The stone walls, the start corners,
-the crate distribution and the engine's rules are all invariant under the 8
-rotations and reflections of the square board (the dihedral group D4). A
-situation and its mirror image deserve the same action values with the
-actions mirrored, so the Q-table stores one representative per orbit:
+The stone walls, the start corners, the crate distribution and the engine's
+rules are all invariant under the 8 rotations and reflections of the square
+board (the dihedral group D4). A situation and its mirror image deserve the
+same action values with the actions mirrored, so the Q-table stores one
+representative per orbit:
 
     index, g = canonical(features, encoding)   # g maps the real board onto it
     a_canonical = to_canonical(a, g)           # for learning and lookup
@@ -20,8 +20,8 @@ and ``BOMB`` are fixed.
 The representative is the image with the smallest index, taking the first
 symmetry in ``SYMMETRIES`` (identity first) on equal indices. A state fixed by
 several symmetries therefore always uses the same one. That is consistent, but
-it does not force equal values for actions its stabiliser swaps; the plan
-accepts this.
+it does not force equal values for actions its stabiliser swaps, which is
+accepted here.
 
 All of this is sound only if the features are equivariant: extracting from a
 transformed game state must give the transformed features.

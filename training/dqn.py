@@ -1,11 +1,11 @@
-"""Transition-budget driver using D4 persistence at completed chunk boundaries.
+"""Transition-budget driver saving the agent's full state at chunk boundaries.
 
 Automatic per-round saves are disabled while managed by this driver. A killed
 chunk is replayed from its last full checkpoint; uncommitted metrics are removed.
 The checkpoint contains the small driver cursor and committed chunk records, so
 a crash before writing chunks.jsonl does not accidentally train a chunk twice.
 Files remain individually atomic, not a multi-file transaction: incompatible
-checkpoint/replay generations fail closed through D4's loader.
+checkpoint/replay generations fail closed through the agent's loader.
 """
 
 import json

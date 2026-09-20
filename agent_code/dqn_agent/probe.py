@@ -1,4 +1,9 @@
-"""Fixed supplied probe diagnostics; game-state collection belongs to D6."""
+"""Diagnostics of a network on a fixed, externally supplied set of probe states.
+
+The probe file is built elsewhere and only read here: this module reports the
+greedy action, the value level and the churn against the previous measurement,
+and refuses a probe whose encoder schema differs from the running one.
+"""
 
 import hashlib
 from pathlib import Path
@@ -12,7 +17,7 @@ from .network import QFunction
 
 def check_q(values: NDArray[np.float32]) -> None:
     if not np.isfinite(values).all() or (np.abs(values) > 50).any():
-        raise FloatingPointError("D-S7: Q is nonfinite or |Q| > 50")
+        raise FloatingPointError("Q is nonfinite or |Q| > 50")
 
 
 class Probe:
