@@ -299,11 +299,24 @@ def test_training_parameters_default_and_validate() -> None:
             Config.from_env({ENV_VAR: bad})
 
 
-def test_relative_paths_are_taken_from_the_repository_root() -> None:
+def test_relative_paths_are_taken_from_the_repository_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
     environ = {
         "TABULAR_Q_AGENT_MODEL": "results/run/q.npz",
-        "TABULAR_Q_AGENT_METRICS": "/abs/metrics.jsonl",
+        "TABULAR_Q_AGENT_METRICS": "results/run/metrics.jsonl",
     }
     assert model_path(environ) == (REPO_ROOT / "results/run/q.npz", True)
-    assert metrics_path(environ) == Path("/abs/metrics.jsonl")
+    assert metrics_path(environ) == REPO_ROOT / "results/run/metrics.jsonl"
     assert (REPO_ROOT / "main.py").exists()
+
+    absolute_model = tmp_path / "q.npz"
+    absolute_metrics = tmp_path / "metrics.jsonl"
+    assert absolute_model.is_absolute() and absolute_metrics.is_absolute()
+    environ = {
+        "TABULAR_Q_AGENT_MODEL": str(absolute_model),
+        "TABULAR_Q_AGENT_METRICS": str(absolute_metrics),
+    }
+    assert model_path(environ) == (absolute_model, True)
+    assert metrics_path(environ) == absolute_metrics

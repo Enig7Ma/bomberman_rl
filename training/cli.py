@@ -30,7 +30,7 @@ from training.evaluate import evaluate_run, render_curve
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m training",
-        description="Train and evaluate tabular_q_agent through curricula.",
+        description="Train and evaluate tabular or DQN agents through curricula.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -48,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--init-from",
         type=Path,
         default=None,
-        help="start every new run from a copy of this Q-table",
+        help="start every new run from a copy of this inference model",
     )
     run.add_argument("--no-progress", action="store_true")
 

@@ -1,0 +1,1244 @@
+{
+  "full_transfer_equal": true,
+  "all_round_schedules_match": true,
+  "epsilon_reference": {
+    "0": 0.3,
+    "150000": 0.09166666666666665,
+    "180000": 0.05,
+    "300000": 0.05
+  },
+  "mixture": {
+    "loot-crate": {
+      "rounds": 324,
+      "transitions": 129600
+    },
+    "classic": {
+      "rounds": 345,
+      "transitions": 138000
+    },
+    "coin-heaven": {
+      "rounds": 190,
+      "transitions": 32699
+    }
+  },
+  "checkpoints": [
+    {
+      "global_transitions": 50047,
+      "stage_position": 0,
+      "updates": 11262,
+      "replay_length": 50047,
+      "terminals": 319,
+      "complete_rounds_matched": 0,
+      "reward_max_errors": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "global_transitions": 150617,
+      "stage_position": 100570,
+      "updates": 36405,
+      "replay_length": 100000,
+      "terminals": 294,
+      "complete_rounds_matched": 293,
+      "reward_max_errors": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "global_transitions": 250654,
+      "stage_position": 200607,
+      "updates": 61414,
+      "replay_length": 100000,
+      "terminals": 280,
+      "complete_rounds_matched": 279,
+      "reward_max_errors": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "global_transitions": 350346,
+      "stage_position": 300299,
+      "updates": 86337,
+      "replay_length": 100000,
+      "terminals": 285,
+      "complete_rounds_matched": 284,
+      "reward_max_errors": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "evaluations": [
+    {
+      "global_transitions": 50047,
+      "stage_transitions": 0,
+      "preset": "crates-solo",
+      "coins_by_seed": [
+        31,
+        18,
+        40,
+        22,
+        0,
+        16,
+        28,
+        38,
+        1,
+        10
+      ],
+      "means": {
+        "coins": 20.4,
+        "crates": 48.5,
+        "bombs": 42.7,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0
+    },
+    {
+      "global_transitions": 150617,
+      "stage_transitions": 100570,
+      "preset": "crates-solo",
+      "coins_by_seed": [
+        2,
+        0,
+        6,
+        0,
+        2,
+        3,
+        7,
+        0,
+        1,
+        0
+      ],
+      "means": {
+        "coins": 2.1,
+        "crates": 10.5,
+        "bombs": 4.0,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        -29,
+        -18,
+        -34,
+        -22,
+        2,
+        -13,
+        -21,
+        -38,
+        0,
+        -10
+      ]
+    },
+    {
+      "global_transitions": 250654,
+      "stage_transitions": 200607,
+      "preset": "crates-solo",
+      "coins_by_seed": [
+        35,
+        39,
+        18,
+        31,
+        35,
+        32,
+        36,
+        35,
+        3,
+        1
+      ],
+      "means": {
+        "coins": 26.5,
+        "crates": 66.7,
+        "bombs": 47.5,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        33,
+        39,
+        12,
+        31,
+        33,
+        29,
+        29,
+        35,
+        2,
+        1
+      ]
+    },
+    {
+      "global_transitions": 350346,
+      "stage_transitions": 300299,
+      "preset": "crates-solo",
+      "coins_by_seed": [
+        36,
+        12,
+        36,
+        34,
+        13,
+        23,
+        42,
+        40,
+        21,
+        27
+      ],
+      "means": {
+        "coins": 28.4,
+        "crates": 68.6,
+        "bombs": 46.5,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        1,
+        -27,
+        18,
+        3,
+        -22,
+        -9,
+        6,
+        5,
+        18,
+        26
+      ]
+    },
+    {
+      "global_transitions": 50047,
+      "stage_transitions": 0,
+      "preset": "classic-solo",
+      "coins_by_seed": [
+        2,
+        0,
+        1,
+        3,
+        0,
+        1,
+        1,
+        1,
+        2,
+        1
+      ],
+      "means": {
+        "coins": 1.2,
+        "crates": 16.3,
+        "bombs": 51.0,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0
+    },
+    {
+      "global_transitions": 150617,
+      "stage_transitions": 100570,
+      "preset": "classic-solo",
+      "coins_by_seed": [
+        2,
+        0,
+        1,
+        0,
+        4,
+        0,
+        1,
+        0,
+        0,
+        1
+      ],
+      "means": {
+        "coins": 0.9,
+        "crates": 20.9,
+        "bombs": 12.2,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        0,
+        0,
+        0,
+        -3,
+        4,
+        -1,
+        0,
+        -1,
+        -2,
+        0
+      ]
+    },
+    {
+      "global_transitions": 250654,
+      "stage_transitions": 200607,
+      "preset": "classic-solo",
+      "coins_by_seed": [
+        0,
+        5,
+        1,
+        6,
+        5,
+        3,
+        3,
+        3,
+        0,
+        6
+      ],
+      "means": {
+        "coins": 3.2,
+        "crates": 47.1,
+        "bombs": 55.8,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        -2,
+        5,
+        0,
+        6,
+        1,
+        3,
+        2,
+        3,
+        0,
+        5
+      ]
+    },
+    {
+      "global_transitions": 350346,
+      "stage_transitions": 300299,
+      "preset": "classic-solo",
+      "coins_by_seed": [
+        1,
+        7,
+        3,
+        2,
+        3,
+        3,
+        2,
+        1,
+        3,
+        1
+      ],
+      "means": {
+        "coins": 2.6,
+        "crates": 30.8,
+        "bombs": 56.1,
+        "steps": 400.0,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        1,
+        2,
+        2,
+        -4,
+        -2,
+        0,
+        -1,
+        -2,
+        3,
+        -5
+      ]
+    },
+    {
+      "global_transitions": 50047,
+      "stage_transitions": 0,
+      "preset": "coin-heaven-solo",
+      "coins_by_seed": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "means": {
+        "coins": 50.0,
+        "crates": 0.0,
+        "bombs": 0.0,
+        "steps": 124.7,
+        "suicides": 0.0
+      },
+      "deaths": 0
+    },
+    {
+      "global_transitions": 150617,
+      "stage_transitions": 100570,
+      "preset": "coin-heaven-solo",
+      "coins_by_seed": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "means": {
+        "coins": 50.0,
+        "crates": 0.0,
+        "bombs": 0.0,
+        "steps": 124.7,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "global_transitions": 250654,
+      "stage_transitions": 200607,
+      "preset": "coin-heaven-solo",
+      "coins_by_seed": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "means": {
+        "coins": 50.0,
+        "crates": 0.0,
+        "bombs": 0.0,
+        "steps": 124.7,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "global_transitions": 350346,
+      "stage_transitions": 300299,
+      "preset": "coin-heaven-solo",
+      "coins_by_seed": [
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50,
+        50
+      ],
+      "means": {
+        "coins": 50.0,
+        "crates": 0.0,
+        "bombs": 0.0,
+        "steps": 124.7,
+        "suicides": 0.0
+      },
+      "deaths": 0,
+      "paired_coin_change": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "bomb_behavior": [
+    {
+      "global_transitions": 50047,
+      "scenario": "loot-crate",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 409,
+      "productive_bomb_opportunities": 196,
+      "productive_bomb_choices": 74,
+      "empty_contexts": 827,
+      "empty_bombs": 59,
+      "bombs": 133,
+      "exploded_bombs": 131,
+      "crate_destroying_bombs": 74,
+      "crates": 212,
+      "pending_bombs": 2,
+      "wait": 262,
+      "immediate_backtracks": 50,
+      "reachable_visible_coin_steps": 380,
+      "last_reachable_coins_before_action": 1,
+      "score": 89,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 50047,
+      "scenario": "classic",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 180,
+      "productive_bomb_opportunities": 13,
+      "productive_bomb_choices": 9,
+      "empty_contexts": 1008,
+      "empty_bombs": 161,
+      "bombs": 170,
+      "exploded_bombs": 169,
+      "crate_destroying_bombs": 9,
+      "crates": 31,
+      "pending_bombs": 1,
+      "wait": 283,
+      "immediate_backtracks": 131,
+      "reachable_visible_coin_steps": 16,
+      "last_reachable_coins_before_action": 0,
+      "score": 3,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 150617,
+      "scenario": "loot-crate",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 1131,
+      "productive_bomb_opportunities": 939,
+      "productive_bomb_choices": 11,
+      "empty_contexts": 227,
+      "empty_bombs": 0,
+      "bombs": 11,
+      "exploded_bombs": 11,
+      "crate_destroying_bombs": 11,
+      "crates": 39,
+      "pending_bombs": 0,
+      "wait": 11,
+      "immediate_backtracks": 1111,
+      "reachable_visible_coin_steps": 1175,
+      "last_reachable_coins_before_action": 7,
+      "score": 8,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 150617,
+      "scenario": "classic",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 957,
+      "productive_bomb_opportunities": 467,
+      "productive_bomb_choices": 30,
+      "empty_contexts": 628,
+      "empty_bombs": 10,
+      "bombs": 40,
+      "exploded_bombs": 40,
+      "crate_destroying_bombs": 30,
+      "crates": 76,
+      "pending_bombs": 0,
+      "wait": 55,
+      "immediate_backtracks": 928,
+      "reachable_visible_coin_steps": 944,
+      "last_reachable_coins_before_action": 3,
+      "score": 3,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 250654,
+      "scenario": "loot-crate",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 360,
+      "productive_bomb_opportunities": 164,
+      "productive_bomb_choices": 77,
+      "empty_contexts": 724,
+      "empty_bombs": 65,
+      "bombs": 142,
+      "exploded_bombs": 139,
+      "crate_destroying_bombs": 77,
+      "crates": 227,
+      "pending_bombs": 3,
+      "wait": 108,
+      "immediate_backtracks": 61,
+      "reachable_visible_coin_steps": 475,
+      "last_reachable_coins_before_action": 0,
+      "score": 92,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 250654,
+      "scenario": "classic",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 183,
+      "productive_bomb_opportunities": 53,
+      "productive_bomb_choices": 45,
+      "empty_contexts": 776,
+      "empty_bombs": 124,
+      "bombs": 169,
+      "exploded_bombs": 169,
+      "crate_destroying_bombs": 45,
+      "crates": 105,
+      "pending_bombs": 0,
+      "wait": 73,
+      "immediate_backtracks": 81,
+      "reachable_visible_coin_steps": 35,
+      "last_reachable_coins_before_action": 0,
+      "score": 6,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 350346,
+      "scenario": "loot-crate",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 355,
+      "productive_bomb_opportunities": 156,
+      "productive_bomb_choices": 69,
+      "empty_contexts": 838,
+      "empty_bombs": 72,
+      "bombs": 141,
+      "exploded_bombs": 140,
+      "crate_destroying_bombs": 69,
+      "crates": 197,
+      "pending_bombs": 1,
+      "wait": 296,
+      "immediate_backtracks": 13,
+      "reachable_visible_coin_steps": 361,
+      "last_reachable_coins_before_action": 0,
+      "score": 84,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    },
+    {
+      "global_transitions": 350346,
+      "scenario": "classic",
+      "games": 3,
+      "actions": 1200,
+      "bomb_allowed": 202,
+      "productive_bomb_opportunities": 51,
+      "productive_bomb_choices": 41,
+      "empty_contexts": 879,
+      "empty_bombs": 127,
+      "bombs": 168,
+      "exploded_bombs": 165,
+      "crate_destroying_bombs": 41,
+      "crates": 120,
+      "pending_bombs": 3,
+      "wait": 303,
+      "immediate_backtracks": 2,
+      "reachable_visible_coin_steps": 57,
+      "last_reachable_coins_before_action": 0,
+      "score": 11,
+      "limit400": 3,
+      "death": 0,
+      "matches_original_score_bombs_crates": 3
+    }
+  ],
+  "same_observation_examples": [
+    {
+      "source": "results\\dqn\\d7_diagnosis_20260918_v2\\150617_loot-crate_500.json",
+      "global_transitions": 150617,
+      "scenario": "loot-crate",
+      "seed": 500,
+      "step": 25,
+      "pos": [
+        13,
+        13
+      ],
+      "features": {
+        "mask": 58,
+        "coin_dir": 3,
+        "crate_dir": 5,
+        "bomb_yield": 3,
+        "danger": 0,
+        "opp_dir": 4,
+        "attack": 0
+      },
+      "allowed": [
+        "RIGHT",
+        "LEFT",
+        "WAIT",
+        "BOMB"
+      ],
+      "action": "RIGHT",
+      "q_by_snapshot": {
+        "50047": {
+          "RIGHT": 2.671010732650757,
+          "LEFT": 2.887399435043335,
+          "WAIT": 2.572113513946533,
+          "BOMB": 2.4856069087982178
+        },
+        "150617": {
+          "RIGHT": 2.7828285694122314,
+          "LEFT": 2.765995502471924,
+          "WAIT": 2.724675416946411,
+          "BOMB": 2.4306209087371826
+        },
+        "250654": {
+          "RIGHT": 2.78069806098938,
+          "LEFT": 2.8325352668762207,
+          "WAIT": 2.762505292892456,
+          "BOMB": 2.4796504974365234
+        },
+        "350346": {
+          "RIGHT": 3.086897850036621,
+          "LEFT": 3.1644399166107178,
+          "WAIT": 3.090062379837036,
+          "BOMB": 2.7944889068603516
+        }
+      },
+      "score": 2,
+      "score_after": 2,
+      "coin_distance": 2,
+      "reachable_coins": 2,
+      "next_8_steps": [
+        {
+          "step": 25,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 26,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 27,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 28,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 29,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 30,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 31,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 32,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        }
+      ],
+      "explosions_next_8_steps": []
+    },
+    {
+      "source": "results\\dqn\\d7_diagnosis_20260918_v2\\150617_loot-crate_500.json",
+      "global_transitions": 150617,
+      "scenario": "loot-crate",
+      "seed": 500,
+      "step": 26,
+      "pos": [
+        14,
+        13
+      ],
+      "features": {
+        "mask": 58,
+        "coin_dir": 3,
+        "crate_dir": 3,
+        "bomb_yield": 0,
+        "danger": 0,
+        "opp_dir": 4,
+        "attack": 0
+      },
+      "allowed": [
+        "RIGHT",
+        "LEFT",
+        "WAIT",
+        "BOMB"
+      ],
+      "action": "LEFT",
+      "q_by_snapshot": {
+        "50047": {
+          "RIGHT": 3.332416534423828,
+          "LEFT": 3.623788595199585,
+          "WAIT": 3.130223512649536,
+          "BOMB": 3.0034005641937256
+        },
+        "150617": {
+          "RIGHT": 2.8683981895446777,
+          "LEFT": 2.877521514892578,
+          "WAIT": 2.8237879276275635,
+          "BOMB": 2.683276653289795
+        },
+        "250654": {
+          "RIGHT": 2.8576509952545166,
+          "LEFT": 2.9379312992095947,
+          "WAIT": 2.903292417526245,
+          "BOMB": 2.8333115577697754
+        },
+        "350346": {
+          "RIGHT": 3.1790037155151367,
+          "LEFT": 3.2521445751190186,
+          "WAIT": 3.1547181606292725,
+          "BOMB": 3.0255770683288574
+        }
+      },
+      "score": 2,
+      "score_after": 2,
+      "coin_distance": 3,
+      "reachable_coins": 2,
+      "next_8_steps": [
+        {
+          "step": 26,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 27,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 28,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 29,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 30,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 31,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        },
+        {
+          "step": 32,
+          "pos": [
+            14,
+            13
+          ],
+          "action": "LEFT",
+          "score_after": 2
+        },
+        {
+          "step": 33,
+          "pos": [
+            13,
+            13
+          ],
+          "action": "RIGHT",
+          "score_after": 2
+        }
+      ],
+      "explosions_next_8_steps": []
+    },
+    {
+      "source": "results\\dqn\\d7_diagnosis_20260918_v2\\350346_loot-crate_500.json",
+      "global_transitions": 350346,
+      "scenario": "loot-crate",
+      "seed": 500,
+      "step": 120,
+      "pos": [
+        13,
+        9
+      ],
+      "features": {
+        "mask": 63,
+        "coin_dir": 4,
+        "crate_dir": 3,
+        "bomb_yield": 0,
+        "danger": 0,
+        "opp_dir": 4,
+        "attack": 0
+      },
+      "allowed": [
+        "UP",
+        "RIGHT",
+        "DOWN",
+        "LEFT",
+        "WAIT",
+        "BOMB"
+      ],
+      "action": "BOMB",
+      "q_by_snapshot": {
+        "50047": {
+          "UP": -0.15104684233665466,
+          "RIGHT": -0.17877256870269775,
+          "DOWN": -0.10065344721078873,
+          "LEFT": -0.19862383604049683,
+          "WAIT": -0.13262119889259338,
+          "BOMB": -0.060226425528526306
+        },
+        "150617": {
+          "UP": 1.2670562267303467,
+          "RIGHT": 1.2515796422958374,
+          "DOWN": 1.1744451522827148,
+          "LEFT": 1.2331271171569824,
+          "WAIT": 1.2529010772705078,
+          "BOMB": 1.2990295886993408
+        },
+        "250654": {
+          "UP": 1.6395223140716553,
+          "RIGHT": 1.6209050416946411,
+          "DOWN": 1.654212236404419,
+          "LEFT": 1.6523959636688232,
+          "WAIT": 1.6331508159637451,
+          "BOMB": 1.6692415475845337
+        },
+        "350346": {
+          "UP": 2.0795371532440186,
+          "RIGHT": 2.077491044998169,
+          "DOWN": 2.0718307495117188,
+          "LEFT": 2.0799801349639893,
+          "WAIT": 2.076430559158325,
+          "BOMB": 2.132963180541992
+        }
+      },
+      "score": 15,
+      "score_after": 15,
+      "coin_distance": null,
+      "reachable_coins": 0,
+      "next_8_steps": [
+        {
+          "step": 120,
+          "pos": [
+            13,
+            9
+          ],
+          "action": "BOMB",
+          "score_after": 15
+        },
+        {
+          "step": 121,
+          "pos": [
+            13,
+            9
+          ],
+          "action": "WAIT",
+          "score_after": 15
+        },
+        {
+          "step": 122,
+          "pos": [
+            13,
+            9
+          ],
+          "action": "LEFT",
+          "score_after": 15
+        },
+        {
+          "step": 123,
+          "pos": [
+            12,
+            9
+          ],
+          "action": "LEFT",
+          "score_after": 15
+        },
+        {
+          "step": 124,
+          "pos": [
+            11,
+            9
+          ],
+          "action": "DOWN",
+          "score_after": 15
+        },
+        {
+          "step": 125,
+          "pos": [
+            11,
+            10
+          ],
+          "action": "WAIT",
+          "score_after": 15
+        },
+        {
+          "step": 126,
+          "pos": [
+            11,
+            10
+          ],
+          "action": "UP",
+          "score_after": 15
+        },
+        {
+          "step": 127,
+          "pos": [
+            11,
+            9
+          ],
+          "action": "BOMB",
+          "score_after": 15
+        }
+      ],
+      "explosions_next_8_steps": [
+        {
+          "step": 124,
+          "pos": [
+            13,
+            9
+          ],
+          "crates": 0
+        }
+      ]
+    },
+    {
+      "source": "results\\dqn\\d7_diagnosis_20260918_v2\\350346_classic_500.json",
+      "global_transitions": 350346,
+      "scenario": "classic",
+      "seed": 500,
+      "step": 63,
+      "pos": [
+        15,
+        9
+      ],
+      "features": {
+        "mask": 61,
+        "coin_dir": 4,
+        "crate_dir": 2,
+        "bomb_yield": 0,
+        "danger": 0,
+        "opp_dir": 4,
+        "attack": 0
+      },
+      "allowed": [
+        "UP",
+        "DOWN",
+        "LEFT",
+        "WAIT",
+        "BOMB"
+      ],
+      "action": "BOMB",
+      "q_by_snapshot": {
+        "50047": {
+          "UP": -0.10873577743768692,
+          "DOWN": -0.15060456097126007,
+          "LEFT": -0.062494389712810516,
+          "WAIT": -0.09291499108076096,
+          "BOMB": 0.008729638531804085
+        },
+        "150617": {
+          "UP": 1.2822736501693726,
+          "DOWN": 1.250834345817566,
+          "LEFT": 1.283820629119873,
+          "WAIT": 1.2556302547454834,
+          "BOMB": 1.3164944648742676
+        },
+        "250654": {
+          "UP": 1.6141389608383179,
+          "DOWN": 1.6524200439453125,
+          "LEFT": 1.625969409942627,
+          "WAIT": 1.6315784454345703,
+          "BOMB": 1.6735621690750122
+        },
+        "350346": {
+          "UP": 2.0775742530822754,
+          "DOWN": 2.0782456398010254,
+          "LEFT": 2.073011636734009,
+          "WAIT": 2.071528196334839,
+          "BOMB": 2.126488208770752
+        }
+      },
+      "score": 1,
+      "score_after": 1,
+      "coin_distance": null,
+      "reachable_coins": 0,
+      "next_8_steps": [
+        {
+          "step": 63,
+          "pos": [
+            15,
+            9
+          ],
+          "action": "BOMB",
+          "score_after": 1
+        },
+        {
+          "step": 64,
+          "pos": [
+            15,
+            9
+          ],
+          "action": "LEFT",
+          "score_after": 1
+        },
+        {
+          "step": 65,
+          "pos": [
+            14,
+            9
+          ],
+          "action": "LEFT",
+          "score_after": 1
+        },
+        {
+          "step": 66,
+          "pos": [
+            13,
+            9
+          ],
+          "action": "LEFT",
+          "score_after": 1
+        },
+        {
+          "step": 67,
+          "pos": [
+            12,
+            9
+          ],
+          "action": "LEFT",
+          "score_after": 1
+        },
+        {
+          "step": 68,
+          "pos": [
+            11,
+            9
+          ],
+          "action": "WAIT",
+          "score_after": 1
+        },
+        {
+          "step": 69,
+          "pos": [
+            11,
+            9
+          ],
+          "action": "RIGHT",
+          "score_after": 1
+        },
+        {
+          "step": 70,
+          "pos": [
+            12,
+            9
+          ],
+          "action": "BOMB",
+          "score_after": 1
+        }
+      ],
+      "explosions_next_8_steps": [
+        {
+          "step": 67,
+          "pos": [
+            15,
+            9
+          ],
+          "crates": 0
+        }
+      ]
+    }
+  ],
+  "all_diagnostic_actions_masked_greedy": true,
+  "explored_training_actions": 37728,
+  "training_actions": 300299
+}

@@ -42,6 +42,8 @@ def average_run(run_dir: Path, last: int) -> Path:
     if last < 1:
         raise ValueError(f"last must be at least 1, got {last}")
     curriculum, _ = load_run(run_dir)
+    if curriculum.agent != "tabular_q_agent":
+        raise ValueError("average is defined only for Q-tables, not DQN checkpoints")
     encoding = ENCODINGS[curriculum.agent_config().encoding]
     found = snapshots(run_dir)
     if len(found) < last:

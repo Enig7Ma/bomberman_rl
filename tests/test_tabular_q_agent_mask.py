@@ -2,9 +2,9 @@
 
 import pytest
 
-from agent_code.tabular_q_agent.config import ENV_VAR, Config, MaskVariant
+from agent_code.tabular_q_agent.config import ENV_VAR, Config
 from agent_code.tabular_q_agent.core.safety import Assessment, Outcome
-from agent_code.tabular_q_agent.mask import allowed_actions
+from agent_code.tabular_q_agent.mask import MaskVariant, allowed_actions
 
 
 def graded(action: str, tier: int, survived: int = 5) -> Assessment:

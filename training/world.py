@@ -13,9 +13,11 @@ stopping condition of the engine is unchanged. The dead learner's final
 ``end_of_round`` then carries the posthumous events.
 """
 
+import logging
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Protocol, cast
+from unittest.mock import patch
 
 from environment import BombeRLeWorld, WorldArgs
 from tournament.engine import ensure_repo_cwd
@@ -89,7 +91,28 @@ def create_training_world(
         scenario=scenario,
     )
     agents = [(code_name, seat < train_seats) for seat, code_name in enumerate(lineup)]
-    return TrainingWorld(args, agents)
+    # AgentRunner hardcodes agent_code/<name>/logs and opens files with "w".
+    # Route their FileHandlers during construction, before any writes, so spawned
+    # runs cannot truncate one another's logs. World logs already use log_dir.
+    destination = Path(log_dir).resolve() / "agents"
+
+    class RunFileHandler(logging.FileHandler):
+        def __init__(
+            self,
+            filename: str | Path,
+            mode: str = "a",
+            encoding: str | None = None,
+            delay: bool = False,
+            errors: str | None = None,
+        ) -> None:
+            path = Path(filename)
+            if "agent_code" in path.parts:
+                path = destination / path.parent.parent.name / path.name
+                path.parent.mkdir(parents=True, exist_ok=True)
+            super().__init__(path, mode, encoding, delay, errors)
+
+    with patch("logging.FileHandler", RunFileHandler):
+        return TrainingWorld(args, agents)
 
 
 def play_round(world: BombeRLeWorld) -> None:

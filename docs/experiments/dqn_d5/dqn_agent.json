@@ -1,0 +1,47 @@
+{
+  "name": "d5-throughput-dqn_agent",
+  "agent": "dqn_agent",
+  "params": {
+    "encoding": "E3",
+    "gamma": 0.99,
+    "warmup": 64,
+    "replay_size": 10000,
+    "c_coin": 0.5
+  },
+  "chunk_rounds": 3,
+  "eval_every": 3,
+  "eval_every_transitions": 500,
+  "evaluations": [],
+  "stages": [
+    {
+      "name": "solo",
+      "scenario": "coin-heaven",
+      "lineups": [
+        {
+          "opponents": []
+        }
+      ],
+      "rounds": 6,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.3,
+      "transitions": 100000
+    },
+    {
+      "name": "opponents",
+      "scenario": "classic",
+      "lineups": [
+        {
+          "opponents": [
+            "rule_based_agent",
+            "rule_based_agent",
+            "rule_based_agent"
+          ]
+        }
+      ],
+      "rounds": 3,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.3,
+      "transitions": 100000
+    }
+  ]
+}

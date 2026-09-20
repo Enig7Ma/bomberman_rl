@@ -36,11 +36,13 @@ Every mistake is reported before any game is played.
 """
 
 import json
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final, cast
 
 import settings
+from agent_code.dqn_agent.config import Config as DQNConfig
 from agent_code.tabular_q_agent.config import Config as AgentConfig
 from tournament.engine import REPO_ROOT
 from tournament.schedule import PRESETS
@@ -50,6 +52,16 @@ FROZEN: Final = "frozen"
 FROZEN_DIR_PREFIX: Final = "tabular_frozen_"
 # Agent parameters the driver sets per chunk; a curriculum may not fix them.
 DRIVER_PARAMS: Final = frozenset({"epsilon", "stage", "save_every", "seed"})
+
+
+DQN_DRIVER_PARAMS = {
+    "init_seed",
+    "stage_transitions",
+    "epsilon_start",
+    "epsilon_end",
+    "epsilon_fraction",
+}
+DQN_STAGE_PARAMS = {"lr", "gamma", "c_coin", "crate_aid", "death_aid", "grad_clip"}
 
 
 class CurriculumError(ValueError):
@@ -74,6 +86,8 @@ class Stage:
     epsilon_end: float
     decay_share: float = 0.6
     replay_share: float = 0.0
+    transitions: int | None = None
+    params: dict[str, Any] = field(default_factory=dict[str, Any])
 
     def epsilon_at(self, rounds_done: int) -> float:
         """Epsilon after ``rounds_done`` of this stage's rounds."""
@@ -100,12 +114,15 @@ class Curriculum:
     evaluations: tuple[Evaluation, ...]
     stages: tuple[Stage, ...] = field(default_factory=tuple[Stage, ...])
 
+    agent: str = LEARNER
+    eval_every_transitions: int = 100_000
+
     @property
     def total_rounds(self) -> int:
         return sum(stage.rounds for stage in self.stages)
 
-    def agent_config(self) -> AgentConfig:
-        return AgentConfig(**self.params)
+    def agent_config(self) -> AgentConfig | DQNConfig:
+        return (DQNConfig if self.agent == "dqn_agent" else AgentConfig)(**self.params)
 
 
 # --- parsing ---------------------------------------------------------------
@@ -167,11 +184,11 @@ def _opponent(raw: object, where: str) -> str:
     name = _str(raw, where)
     if name == FROZEN:
         return name
-    if name == LEARNER:
+    if name in (LEARNER, "dqn_agent"):
         raise CurriculumError(
             f"{where}: the learner cannot be an opponent; use {FROZEN!r}"
         )
-    if name.startswith(FROZEN_DIR_PREFIX):
+    if name.startswith((FROZEN_DIR_PREFIX, "dqn_frozen_")):
         raise CurriculumError(
             f"{where}: {name!r} is managed by the driver; use {FROZEN!r}"
         )
@@ -189,7 +206,12 @@ def _lineup(raw: object, where: str) -> Lineup:
     if len(opponents) > settings.MAX_AGENTS - 1:
         raise CurriculumError(f"{where}: at most {settings.MAX_AGENTS - 1} opponents")
     weight = obj.get("weight", 1.0)
-    if not isinstance(weight, int | float) or isinstance(weight, bool) or weight <= 0:
+    if (
+        not isinstance(weight, int | float)
+        or isinstance(weight, bool)
+        or weight <= 0
+        or not math.isfinite(weight)
+    ):
         raise CurriculumError(f"{where}.weight: expected a number > 0")
     scenario: object = obj.get("scenario")
     if scenario is None:
@@ -197,12 +219,14 @@ def _lineup(raw: object, where: str) -> Lineup:
     return Lineup(opponents, float(weight), _scenario(scenario, f"{where}.scenario"))
 
 
-def _stage(raw: object, where: str, chunk_rounds: int, first: bool) -> Stage:
+def _stage(
+    raw: object, where: str, chunk_rounds: int, first: bool, dqn: bool = False
+) -> Stage:
     obj = _object(
         raw,
         where,
-        {"name", "scenario", "lineups", "rounds", "epsilon_start", "epsilon_end"},
-        {"decay_share", "replay_share"},
+        {"name", "scenario", "lineups", "epsilon_start", "epsilon_end"},
+        {"rounds", "decay_share", "replay_share", "transitions", "params"},
     )
     scenario = _scenario(obj["scenario"], f"{where}.scenario")
     lineups = tuple(
@@ -211,8 +235,13 @@ def _stage(raw: object, where: str, chunk_rounds: int, first: bool) -> Stage:
     )
     if not lineups:
         raise CurriculumError(f"{where}.lineups: needs at least one lineup")
-    rounds = _int(obj["rounds"], f"{where}.rounds", chunk_rounds)
-    if rounds % chunk_rounds:
+    rounds = _int(obj.get("rounds", 0), f"{where}.rounds", 0 if dqn else chunk_rounds)
+    transitions = obj.get("transitions")
+    if dqn:
+        transitions = _int(transitions, f"{where}.transitions", 1)
+    elif transitions is not None:
+        raise CurriculumError("tabular stages use rounds, not transitions")
+    if not dqn and rounds % chunk_rounds:
         raise CurriculumError(f"{where}.rounds: must be a multiple of {chunk_rounds}")
     replay_share = _share(
         obj.get("replay_share", 0.0), f"{where}.replay_share", below_one=True
@@ -230,6 +259,17 @@ def _stage(raw: object, where: str, chunk_rounds: int, first: bool) -> Stage:
         epsilon_end=_share(obj["epsilon_end"], f"{where}.epsilon_end"),
         decay_share=_share(obj.get("decay_share", 0.6), f"{where}.decay_share"),
         replay_share=replay_share,
+        transitions=transitions,
+        params=dict(
+            _object(
+                obj.get("params", {}),
+                f"{where}.params",
+                set(),
+                set(DQN_STAGE_PARAMS if dqn else AgentConfig.__dataclass_fields__)
+                - DRIVER_PARAMS
+                - {"encoding"},
+            )
+        ),
     )
 
 
@@ -251,31 +291,56 @@ def parse_curriculum(raw: object) -> Curriculum:
     obj = _object(
         raw,
         "curriculum",
-        {"name", "params", "chunk_rounds", "eval_every", "evaluations", "stages"},
+        {"name", "params", "chunk_rounds", "evaluations", "stages"},
+        {"agent", "eval_every", "eval_every_transitions"},
     )
+    agent = obj.get("agent", LEARNER)
+    if agent not in (LEARNER, "dqn_agent"):
+        raise CurriculumError("unknown agent")
+    dqn = agent == "dqn_agent"
     raw_params: object = obj["params"]
     if not isinstance(raw_params, dict):
         raise CurriculumError("params: expected an object")
     params = cast(dict[str, Any], raw_params)
-    reserved = DRIVER_PARAMS & params.keys()
+    reserved = (
+        DRIVER_PARAMS | (DQN_DRIVER_PARAMS if dqn else set[str]())
+    ) & params.keys()
     if reserved:
         raise CurriculumError(f"params: {sorted(reserved)} are set by the driver")
     try:
-        AgentConfig(**params)
+        (DQNConfig if dqn else AgentConfig)(**params)
     except (TypeError, ValueError) as error:
         raise CurriculumError(f"params: {error}") from error
 
     chunk_rounds = _int(obj["chunk_rounds"], "chunk_rounds", 1)
-    eval_every = _int(obj["eval_every"], "eval_every", chunk_rounds)
+    eval_every = _int(
+        obj.get("eval_every", chunk_rounds if dqn else 0), "eval_every", chunk_rounds
+    )
     if eval_every % chunk_rounds:
         raise CurriculumError(f"eval_every: must be a multiple of {chunk_rounds}")
     stage_list = _list(obj["stages"], "stages")
     if not stage_list:
         raise CurriculumError("stages: needs at least one stage")
     stages = tuple(
-        _stage(item, f"stages[{i}]", chunk_rounds, first=i == 0)
+        _stage(item, f"stages[{i}]", chunk_rounds, first=i == 0, dqn=dqn)
         for i, item in enumerate(stage_list)
     )
+    for stage in stages:
+        try:
+            merged = {**params, **stage.params}
+            if dqn:
+                merged.update(
+                    epsilon_start=stage.epsilon_start,
+                    epsilon_end=stage.epsilon_end,
+                    epsilon_fraction=stage.decay_share,
+                )
+                DQNConfig(**merged)
+            else:
+                AgentConfig(**merged)
+        except (TypeError, ValueError) as error:
+            raise CurriculumError(f"stage {stage.name}: {error}") from error
+    if dqn and len(stages) > 256:
+        raise CurriculumError("DQN supports at most 256 stages")
     names = [stage.name for stage in stages]
     if len(set(names)) != len(names):
         raise CurriculumError(f"stages: names must be unique, got {names}")
@@ -289,6 +354,10 @@ def parse_curriculum(raw: object) -> Curriculum:
             for i, item in enumerate(_list(obj["evaluations"], "evaluations"))
         ),
         stages=stages,
+        agent=agent,
+        eval_every_transitions=_int(
+            obj.get("eval_every_transitions", 100_000), "eval_every_transitions", 1
+        ),
     )
 
 

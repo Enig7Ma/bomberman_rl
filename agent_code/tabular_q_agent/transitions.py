@@ -1,4 +1,4 @@
-"""From the framework's callbacks to Q-learning transitions (plan §5.8).
+"""Tabular sink for the shared callback bookkeeping (plan §5.8).
 
 The engine reports the consequences of a step in two different ways (plan §4,
 facts E1-E4):
@@ -13,10 +13,14 @@ facts E1-E4):
 So neither callback can complete a transition on its own. Each action leaves
 a transition *pending* until either the next ``act`` (the step was survived:
 non-terminal, bootstrap from the new state) or ``end_of_round`` (terminal, no
-bootstrap). Events are counted as they arrive, and ``end_of_round`` counts only
-the part of its list that was not reported before -- after checking that the
+bootstrap). ``Bookkeeper`` copies events as they arrive and delivers only
+the part of the final list that was not reported before -- after checking that the
 reported part is unchanged, so a framework change fails loudly instead of
 double-counting quietly.
+
+``Trainer`` consumes each completed transition, counts its event batches,
+applies the tabular update and builds the round's metrics. Its public callback
+methods delegate to ``Bookkeeper`` so the existing agent API stays unchanged.
 
 Every action gets exactly one update. Its reward is the event reward (score
 delta plus aids, see ``rewards``) plus ``gamma * phi(s') - phi(s)``, with
@@ -31,44 +35,14 @@ a silently wrong target is worse than a crashed training run.
 import time
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
 
 import events as e
 
+from .bookkeeping import Bookkeeper, Pending, Transition
+from .bookkeeping import BookkeepingError as BookkeepingError
 from .learner import Learner, Selection
 from .metrics import RoundRecord
 from .rewards import Rewards
-
-
-class BookkeepingError(RuntimeError):
-    """The framework's callbacks arrived in an order this module does not expect."""
-
-
-@dataclass
-class Pending:
-    """An action whose consequences are not complete yet."""
-
-    round: int
-    step: int
-    state: int
-    action: int
-    played: str
-    phi: float
-    # Live crates a bomb dropped by this action would destroy (``bomb_aid``).
-    bomb_hits: int = 0
-    reward: float = 0.0
-    # The events ``game_events_occurred`` reported, or None if it never came.
-    received: tuple[str, ...] | None = None
-
-
-@dataclass(frozen=True)
-class _Observed:
-    round: int
-    step: int
-    state: int
-    allowed: tuple[int, ...]
-    phi: float
-    bomb_hits: int
 
 
 class Trainer:
@@ -82,8 +56,7 @@ class Trainer:
         meta = learner.table.meta
         self.rounds_trained = int(meta.get("rounds_trained", 0))
         self.steps_trained = int(meta.get("steps_trained", 0))
-        self.pending: Pending | None = None
-        self._observed: _Observed | None = None
+        self.bookkeeper = Bookkeeper[int](self._on_transition)
         self._reset(0, ())
 
     def _reset(self, round_number: int, opponents: Sequence[str]) -> None:
@@ -104,12 +77,12 @@ class Trainer:
 
     # --- called from ``act`` ----------------------------------------------
 
+    @property
+    def pending(self) -> Pending[int] | None:
+        return self.bookkeeper.pending
+
     def begin_round(self, round_number: int, opponents: Sequence[str]) -> None:
-        if self.pending is not None:
-            raise BookkeepingError(
-                f"round {round_number} started while step {self.pending.step} of "
-                f"round {self.pending.round} was still pending"
-            )
+        self.bookkeeper.begin_round(round_number)
         self._reset(round_number, opponents)
 
     def observe(
@@ -122,85 +95,30 @@ class Trainer:
         bomb_hits: int = 0,
         crate_distance: int | None = None,
     ) -> None:
-        """A new observation; completes the pending transition as survived."""
-        if round_number != self.round:
-            raise BookkeepingError(
-                f"observation of round {round_number} in round {self.round}"
-            )
-        phi = self.rewards.potential(coin_distance, crate_distance)
-        pending = self.pending
-        if pending is not None:
-            if pending.received is None:
-                raise BookkeepingError(
-                    f"step {step}: no game_events_occurred for step {pending.step}"
-                )
-            shaping = self.rewards.shaping(pending.phi, phi)
-            self._update(pending, pending.reward + shaping, state, allowed)
-            self.pending = None
-        self._observed = _Observed(
-            round_number, step, state, tuple(allowed), phi, bomb_hits
+        self.bookkeeper.observe(
+            round_number,
+            step,
+            state,
+            allowed,
+            coin_distance,
+            bomb_hits,
+            crate_distance,
         )
 
     def chose(self, selection: Selection, played: str) -> None:
-        """The action ``act`` returns for the last observation."""
-        observed = self._observed
-        if observed is None:
-            raise BookkeepingError("an action was chosen without an observation")
-        self._observed = None
-        self.pending = Pending(
-            observed.round,
-            observed.step,
-            observed.state,
-            selection.action,
-            played,
-            observed.phi,
-            bomb_hits=observed.bomb_hits,
-        )
+        pending = self.bookkeeper.chose(selection.action, played)
         self._steps += 1
-        self._forced += len(observed.allowed) == 1
+        self._forced += len(pending.observed.allowed) == 1
         self._explored += selection.explored
         self._unseen += selection.unseen and not selection.explored
-
-    # --- called from ``train`` --------------------------------------------
 
     def events_occurred(
         self, round_number: int, step: int, played: str, events: Sequence[str]
     ) -> None:
-        """``game_events_occurred``: the pending step was survived."""
-        pending = self._require_pending("game_events_occurred")
-        if (round_number, step) != (pending.round, pending.step):
-            raise BookkeepingError(
-                f"events for round {round_number} step {step}, but round "
-                f"{pending.round} step {pending.step} is pending"
-            )
-        if played != pending.played:
-            raise BookkeepingError(
-                f"step {step}: the framework reports {played!r}, act returned "
-                f"{pending.played!r}"
-            )
-        if pending.received is not None:
-            raise BookkeepingError(f"step {step}: events reported twice")
-        received = tuple(events)  # the engine keeps mutating its list
-        pending.received = received
-        pending.reward += self._count(pending, received)
+        self.bookkeeper.events_occurred(round_number, step, played, events)
 
     def finish(self, played: str, events: Sequence[str]) -> RoundRecord:
-        """``end_of_round``: complete the last transition as terminal."""
-        pending = self._require_pending("end_of_round")
-        if played != pending.played:
-            raise BookkeepingError(
-                f"end of round reports {played!r}, act returned {pending.played!r}"
-            )
-        delivered = tuple(events)
-        seen = pending.received or ()
-        if delivered[: len(seen)] != seen:
-            raise BookkeepingError(
-                f"end_of_round changed events already reported: {seen} -> {delivered}"
-            )
-        pending.reward += self._count(pending, delivered[len(seen) :])
-        shaping = self.rewards.shaping(pending.phi, 0.0)
-        self._update(pending, pending.reward + shaping, None, ())
-        self.pending = None
+        self.bookkeeper.finish(played, events)
 
         self.rounds_trained += 1
         self.steps_trained += self._steps
@@ -240,31 +158,38 @@ class Trainer:
 
     # --- internals ----------------------------------------------------------
 
-    def _require_pending(self, callback: str) -> Pending:
-        if self.pending is None:
-            raise BookkeepingError(f"{callback} without a pending action")
-        return self.pending
-
-    def _count(self, pending: Pending, events: Sequence[str]) -> float:
+    def _count(self, bomb_hits: int, events: Sequence[str]) -> float:
         """Reward for newly delivered events; each event is delivered once."""
         self._events.update(events)
         base = self.rewards.base(events)
         self._base += base
         aid = self.rewards.aids(events)
         if e.BOMB_DROPPED in events:
-            aid += self.rewards.bomb(pending.bomb_hits)
+            aid += self.rewards.bomb(bomb_hits)
         return base + aid
 
-    def _update(
-        self,
-        pending: Pending,
-        reward: float,
-        next_state: int | None,
-        next_allowed: Sequence[int],
-    ) -> None:
-        self._alpha_sum += self.learner.step_size(pending.state, pending.action)
+    def _on_transition(self, transition: Transition[int]) -> None:
+        observed = transition.observed
+        reward = 0.0
+        for batch in transition.event_batches:
+            reward += self._count(observed.bomb_hits, batch)
+        phi = self.rewards.potential(observed.coin_distance, observed.crate_distance)
+        following = transition.next_observed
+        phi_next = (
+            0.0
+            if following is None
+            else self.rewards.potential(
+                following.coin_distance, following.crate_distance
+            )
+        )
+        reward += self.rewards.shaping(phi, phi_next)
+        self._alpha_sum += self.learner.step_size(observed.state, transition.action)
         delta = self.learner.update(
-            pending.state, pending.action, reward, next_state, next_allowed
+            observed.state,
+            transition.action,
+            reward,
+            following.state if following is not None else None,
+            following.allowed if following is not None else (),
         )
         self._td_sum += abs(delta)
         self._return += reward

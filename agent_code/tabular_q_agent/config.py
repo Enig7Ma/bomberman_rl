@@ -23,6 +23,8 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Literal, cast, get_args
 
+from .mask import MASK_VARIANTS, MaskVariant
+
 AGENT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = AGENT_DIR.parents[1]
 
@@ -39,12 +41,6 @@ DEFAULT_MODEL_PATH = AGENT_DIR / "model" / "q_table.npz"
 # Where training appends one JSON record per round.
 METRICS_ENV_VAR = f"{ENV_PREFIX}_METRICS"
 DEFAULT_METRICS_PATH = AGENT_DIR / "logs" / "train_metrics.jsonl"
-
-# Which safety tiers the agent may choose from (plan §5.2): the best tier
-# available, anything that survives static opponents (tier >= 2), anything with
-# some known escape (tier >= 1), or every legal action.
-MaskVariant = Literal["best_tier", "min_tier_2", "any_escape", "legal"]
-MASK_VARIANTS: tuple[MaskVariant, ...] = get_args(MaskVariant)
 
 # Which state abstraction to use (plan §5.3); ``features.ENCODINGS`` defines
 # them. E3 is the submission's; E1 and E2 are small enough to debug by hand.
