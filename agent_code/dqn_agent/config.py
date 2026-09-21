@@ -70,6 +70,12 @@ class Config:
     # coin race. The model in ``model/`` is a ``dense_v2`` network.
     encoder: str = "dense_v2"
     policy: Policy = "learned"
+    # How far away an armed opponent is still treated as about to drop a bomb
+    # when the safety layer grades actions. ``core``'s own default is 4, which
+    # covers only opponents that could catch us with a bomb dropped from where
+    # they stand; the post-mortem in dev/experiments/dqn.md shows most deaths
+    # come from opponents that walk a step or two first.
+    threat_radius: int = 4
     seed: int | None = None
     init_seed: int | None = None
     gamma: float = 0.99
@@ -144,6 +150,7 @@ class Config:
             "save_every",
             "replay_save_every",
             "probe_every",
+            "threat_radius",
         ):
             value = getattr(self, name)
             minimum = 0 if name == "warmup" else 1

@@ -41,7 +41,12 @@ from typing import Final, Literal
 from .core.attack import opponent_escapes
 from .core.params import Params
 from .core.planning import UNREACHABLE, DistanceCache, bomb_spots
-from .core.safety import Board, assess_actions, threat_bombs
+from .core.safety import (
+    DEFAULT_THREAT_RADIUS,
+    Board,
+    assess_actions,
+    threat_bombs,
+)
 from .core.world_model import (
     ACTIONS,
     BOMB_POWER,
@@ -305,11 +310,23 @@ class Extractor:
     """
 
     def __init__(
-        self, encoding: Encoding, mask: MaskVariant, rng: random.Random
+        self,
+        encoding: Encoding,
+        mask: MaskVariant,
+        rng: random.Random,
+        threat_radius: int = DEFAULT_THREAT_RADIUS,
     ) -> None:
         self.encoding = encoding
         self.mask: MaskVariant = mask
         self.rng = rng
+        # How far away an armed opponent still counts as a bomb about to be
+        # dropped. ``core``'s default is BOMB_POWER + 1, which is exactly the
+        # opponents who could catch us with a bomb dropped *from where they
+        # stand this step*. It does not cover an opponent two steps away from
+        # a cell that would catch us, and post-mortems show that is how this
+        # agent dies: five of its six deaths against ``rule_based_agent`` were
+        # an opponent's bomb alone. A wider radius models those conservatively.
+        self.threat_radius = threat_radius
         # ``bfs_agent``'s valuation defaults. Deliberately not
         # ``Params.from_env()``: a ``bfs_agent`` sweep must not change features.
         self.params = Params()
@@ -326,7 +343,9 @@ class Extractor:
         geometry = self._geometry_for(obs)
         board = Board(obs, geometry)
         timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)
-        assessments = assess_actions(obs, board, timeline, threat_bombs(obs))
+        assessments = assess_actions(
+            obs, board, timeline, threat_bombs(obs, self.threat_radius)
+        )
         allowed = allowed_actions(assessments, self.mask)
         cache = self._distances
         cache.sync(board)

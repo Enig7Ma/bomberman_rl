@@ -44,7 +44,9 @@ def setup(self: AgentSelf) -> None:
     self.config = Config.from_env()
     self.rng = random.Random(self.config.seed)
     self.encoding = ENCODINGS[self.config.encoding]
-    self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
+    self.extractor = Extractor(
+        self.encoding, self.config.mask, self.rng, self.config.threat_radius
+    )
     self.encoder = ENCODERS[self.config.encoder]
     self.model_file, explicit = model_path()
     self.q_function = _load_network(self, explicit)
@@ -81,7 +83,9 @@ def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
     obs = Observation.from_game_state(game_state)
     if obs.round != self.round:
         self.round = obs.round
-        self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
+        self.extractor = Extractor(
+            self.encoding, self.config.mask, self.rng, self.config.threat_radius
+        )
     extracted = self.extractor.extract(obs)
     if self.train and self.trainer is not None:
         index, symmetry = canonical(extracted.features, self.encoding)
