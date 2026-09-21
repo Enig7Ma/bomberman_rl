@@ -32,6 +32,12 @@ the copy a run directory keeps (``dataclasses.asdict``) loads back unchanged::
   agent saves its table at the end of every chunk, and snapshots are taken at
   chunk boundaries.
 
+An opt-in ``transitions`` budget is also supported for tables. In that mode
+epsilon uses completed agent actions, stages finish the current round, and
+``eval_every_transitions`` controls snapshot thresholds at chunk boundaries.
+All stages in a run must use the same budget unit; legacy round curricula
+retain their original semantics.
+
 Every mistake is reported before any game is played.
 """
 
@@ -96,6 +102,17 @@ class Stage:
             return self.epsilon_end
         progress = rounds_done / decay_rounds
         return self.epsilon_start + (self.epsilon_end - self.epsilon_start) * progress
+
+    def epsilon_at_transition(self, completed: int) -> float:
+        """Stage-relative action schedule; rounds are never substituted for steps."""
+        if self.transitions is None:
+            raise ValueError("transition schedule requires a transition budget")
+        decay = self.decay_share * self.transitions
+        if completed >= decay:
+            return self.epsilon_end
+        return self.epsilon_start + (self.epsilon_end - self.epsilon_start) * (
+            completed / decay
+        )
 
 
 @dataclass(frozen=True)
@@ -235,13 +252,14 @@ def _stage(
     )
     if not lineups:
         raise CurriculumError(f"{where}.lineups: needs at least one lineup")
-    rounds = _int(obj.get("rounds", 0), f"{where}.rounds", 0 if dqn else chunk_rounds)
     transitions = obj.get("transitions")
-    if dqn:
+    by_transitions = dqn or transitions is not None
+    rounds = _int(
+        obj.get("rounds", 0), f"{where}.rounds", 0 if by_transitions else chunk_rounds
+    )
+    if by_transitions:
         transitions = _int(transitions, f"{where}.transitions", 1)
-    elif transitions is not None:
-        raise CurriculumError("tabular stages use rounds, not transitions")
-    if not dqn and rounds % chunk_rounds:
+    if not by_transitions and rounds % chunk_rounds:
         raise CurriculumError(f"{where}.rounds: must be a multiple of {chunk_rounds}")
     replay_share = _share(
         obj.get("replay_share", 0.0), f"{where}.replay_share", below_one=True
@@ -313,8 +331,15 @@ def parse_curriculum(raw: object) -> Curriculum:
         raise CurriculumError(f"params: {error}") from error
 
     chunk_rounds = _int(obj["chunk_rounds"], "chunk_rounds", 1)
+    stage_list = _list(obj["stages"], "stages")
+    transition_mode = dqn or any(
+        isinstance(s, dict) and cast(dict[str, Any], s).get("transitions") is not None
+        for s in stage_list
+    )
     eval_every = _int(
-        obj.get("eval_every", chunk_rounds if dqn else 0), "eval_every", chunk_rounds
+        obj.get("eval_every", chunk_rounds if transition_mode else 0),
+        "eval_every",
+        chunk_rounds,
     )
     if eval_every % chunk_rounds:
         raise CurriculumError(f"eval_every: must be a multiple of {chunk_rounds}")
@@ -325,6 +350,8 @@ def parse_curriculum(raw: object) -> Curriculum:
         _stage(item, f"stages[{i}]", chunk_rounds, first=i == 0, dqn=dqn)
         for i, item in enumerate(stage_list)
     )
+    if len({stage.transitions is not None for stage in stages}) > 1:
+        raise CurriculumError("cannot mix round and transition budgets in one run")
     for stage in stages:
         try:
             merged = {**params, **stage.params}
