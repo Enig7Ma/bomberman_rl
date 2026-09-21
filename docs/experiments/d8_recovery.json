@@ -1,0 +1,16 @@
+{
+  "incident": "Windows PermissionError replacing derived metrics; underlying lock owner not established",
+  "seed": 2,
+  "agent": "tabular_q_agent",
+  "before": 323086,
+  "after": 350687,
+  "remaining_played": 27601,
+  "committed_sha256": "d3aaab0ae1df52b06255fdff259d7fd1adc2458762e3fad86d42a949f57098c9",
+  "final_sha256": "3930f346b75eba130708cd6463fcfd751430aabb378582f6ea282b4635bad05a",
+  "record_prefix_unchanged": true,
+  "rounds_unique": true,
+  "visits_equal_transitions": true,
+  "original_failure": "results\\dqn\\d8_reduced_20260921\\tabular_q_agent\\run_2\\recovery\\failure.txt",
+  "changed_behavior": "Bounded retries for derived-file replace only; no reward, learner, budget or RNG reset",
+  "recovery_source": "results\\dqn\\d8_reduced_20260921\\tabular_q_agent\\run_2\\recovery"
+}

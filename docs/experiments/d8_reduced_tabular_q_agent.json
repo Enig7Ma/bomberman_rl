@@ -1,0 +1,75 @@
+{
+  "name": "d8-reduced-navigation-crates",
+  "agent": "tabular_q_agent",
+  "params": {
+    "encoding": "E3",
+    "mask": "best_tier",
+    "symmetry": true,
+    "gamma": 0.99,
+    "coin_potential": 0.5,
+    "crate_aid": 0.0,
+    "death_aid": 0.0,
+    "bomb_aid": 0.0,
+    "spot_potential": 0.0,
+    "teacher_share": 0.0
+  },
+  "chunk_rounds": 5,
+  "eval_every_transitions": 100000,
+  "evaluations": [
+    {
+      "preset": "coin-heaven-solo",
+      "seeds": 10,
+      "seed_start": 500
+    },
+    {
+      "preset": "crates-solo",
+      "seeds": 10,
+      "seed_start": 500
+    },
+    {
+      "preset": "vs-rule-based",
+      "seeds": 25,
+      "seed_start": 500
+    }
+  ],
+  "stages": [
+    {
+      "name": "navigation",
+      "scenario": "coin-heaven",
+      "lineups": [
+        {
+          "opponents": []
+        }
+      ],
+      "transitions": 50000,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.05,
+      "decay_share": 0.6
+    },
+    {
+      "name": "crates",
+      "scenario": "loot-crate",
+      "lineups": [
+        {
+          "opponents": [],
+          "scenario": "loot-crate",
+          "weight": 0.4
+        },
+        {
+          "opponents": [],
+          "scenario": "classic",
+          "weight": 0.4
+        },
+        {
+          "opponents": [],
+          "scenario": "coin-heaven",
+          "weight": 0.2
+        }
+      ],
+      "transitions": 300000,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.05,
+      "decay_share": 0.6
+    }
+  ]
+}

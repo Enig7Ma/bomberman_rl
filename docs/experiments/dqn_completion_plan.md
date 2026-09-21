@@ -1,5 +1,17 @@
 # Practical candidates, D8 gaps and D12 preparation
 
+**2026-09-21 update:** the user subsequently authorized and completed reduced D8
+(both learners, three fresh seeds, navigation50k + crates300k). The transition
+driver prerequisite described below is now implemented. See
+[conclusions](d8_reduced_summary.md), [protocol](d8_reduced_protocol.md) and
+[results](d8_reduced_results.md). The dated audit below remains historical;
+its "not executed" statements refer to2026-09-19. D6/D7 remain failed, full
+D8 all-seat head-to-head/combat curriculum is still omitted, and D12 is pending.
+The study did not replace candidate weights. A subsequent upstream integration
+brought Maria's blended table; see the summary's publication note. It has not
+been evaluated here and does not inherit the old table's validation score.
+The new matched study is separate from the old models' practical validation.
+
 2026-09-19. Branch `feature/ivan-dqn`; initial tree clean, HEAD
 `af6b6f3d0cae2d9002639c9410dbdcce6bf562c9`. No training in this task.
 Plan read from `C:/Users/ivans/Downloads/Telegram Desktop/dqn.md`, D8/D12.

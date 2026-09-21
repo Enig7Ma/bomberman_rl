@@ -1,0 +1,75 @@
+{
+  "name": "d8-reduced-navigation-crates",
+  "agent": "dqn_agent",
+  "params": {
+    "encoder": "onehot_e3",
+    "mask": "best_tier",
+    "gamma": 0.99,
+    "c_coin": 0.5,
+    "crate_aid": 0.0,
+    "death_aid": 0.0,
+    "lr": 0.0003,
+    "target_every": 1000,
+    "n_step": 1,
+    "probe_path": "results/dqn/d6_audit_20260918/probe_v2.npz"
+  },
+  "chunk_rounds": 5,
+  "eval_every_transitions": 100000,
+  "evaluations": [
+    {
+      "preset": "coin-heaven-solo",
+      "seeds": 10,
+      "seed_start": 500
+    },
+    {
+      "preset": "crates-solo",
+      "seeds": 10,
+      "seed_start": 500
+    },
+    {
+      "preset": "vs-rule-based",
+      "seeds": 25,
+      "seed_start": 500
+    }
+  ],
+  "stages": [
+    {
+      "name": "navigation",
+      "scenario": "coin-heaven",
+      "lineups": [
+        {
+          "opponents": []
+        }
+      ],
+      "transitions": 50000,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.05,
+      "decay_share": 0.6
+    },
+    {
+      "name": "crates",
+      "scenario": "loot-crate",
+      "lineups": [
+        {
+          "opponents": [],
+          "scenario": "loot-crate",
+          "weight": 0.4
+        },
+        {
+          "opponents": [],
+          "scenario": "classic",
+          "weight": 0.4
+        },
+        {
+          "opponents": [],
+          "scenario": "coin-heaven",
+          "weight": 0.2
+        }
+      ],
+      "transitions": 300000,
+      "epsilon_start": 0.3,
+      "epsilon_end": 0.05,
+      "decay_share": 0.6
+    }
+  ]
+}
