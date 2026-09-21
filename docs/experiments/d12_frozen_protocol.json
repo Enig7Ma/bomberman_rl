@@ -1,0 +1,846 @@
+{
+  "status": "frozen before held-out; no held-out results collected",
+  "eligible": [
+    "dqn_stage2_baseline",
+    "tabular_blended"
+  ],
+  "candidates": [
+    {
+      "id": "dqn_stage2_baseline",
+      "agent": "dqn_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d7_stage2_seed0_20260918\\checkpoints\\transition_000350346\\q_net.npz",
+      "sha256": "fa724eb4ebebefd2170cb15afe18289e79d023743916252c5ba4238d687c7f33",
+      "origin": "D6 seed0 -> baseline stage2; manifest and continuation.json retained",
+      "header": {
+        "format_version": 1,
+        "encoder": "onehot_e3",
+        "schema_id": "3963eb07bf146d11",
+        "layer_sizes": [
+          32,
+          128,
+          128,
+          6
+        ],
+        "activation": "relu",
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ],
+        "dtype": "float32"
+      },
+      "metadata": {
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "encoder": "onehot_e3",
+          "policy": "learned",
+          "seed": 0,
+          "init_seed": 0,
+          "gamma": 0.99,
+          "lr": 0.0003,
+          "batch_size": 64,
+          "replay_size": 100000,
+          "warmup": 5000,
+          "train_every": 4,
+          "target_every": 1000,
+          "grad_clip": 10.0,
+          "c_coin": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "epsilon_start": 0.3,
+          "epsilon_end": 0.05,
+          "epsilon_fraction": 0.6,
+          "stage": 1,
+          "stage_transitions": 300000,
+          "save_every": 1,
+          "replay_save_every": 50,
+          "probe_every": 10000,
+          "probe_path": "results/dqn/d6_audit_20260918/probe_v2.npz"
+        },
+        "transitions": 350346,
+        "updates": 86337,
+        "rounds_trained": 1178,
+        "parent_checkpoint": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d6_20260917\\pilot_lr3e-04_target1000\\run_0\\checkpoint.pt",
+        "stage": "1",
+        "git_commit": null,
+        "exact_history": true,
+        "run_id": "01e57cb6062e4018ab159e5900940474"
+      },
+      "role": "submission_candidate"
+    },
+    {
+      "id": "tabular_blended",
+      "agent": "tabular_q_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\agent_code\\tabular_q_agent\\model\\q_table.npz",
+      "sha256": "ffd992c6e5c8236d1c012d31bf43b7ed737542cdc19ab8965702c1cd3afeef2d",
+      "origin": "Maria Druz commit40b5718; heuristic blend delta0.05 in metadata; full blending script/history not supplied",
+      "header": {
+        "format_version": 1,
+        "schema_id": "663ff081a15bfc51",
+        "encoding": "E3",
+        "fields": [
+          "mask",
+          "coin_dir",
+          "crate_dir",
+          "bomb_yield",
+          "danger",
+          "opp_dir",
+          "attack"
+        ],
+        "radices": [
+          64,
+          6,
+          6,
+          4,
+          2,
+          6,
+          3
+        ],
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ]
+      },
+      "metadata": {
+        "rounds_trained": 18400,
+        "steps_trained": 6586885,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.9,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.01,
+          "epsilon": 0.05,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.1,
+          "spot_potential": 0.2,
+          "teacher_share": 0.0,
+          "save_every": 50,
+          "stage": "nav-refresh",
+          "seed": 100007
+        },
+        "blended_with_heuristic": {
+          "delta": 0.05
+        }
+      },
+      "visited_states": 54144,
+      "role": "submission_candidate"
+    },
+    {
+      "id": "d8_tabular_q_agent_seed0",
+      "agent": "tabular_q_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d8_reduced_20260921\\tabular_q_agent\\run_0\\archive\\transition_000350146\\q_table.npz",
+      "sha256": "2f64b994923f5a9688fd36ac1f19c8e9e68665dd529b70a96f3232cad712839e",
+      "origin": "Matched reduced D8, fresh seed, navigation50k + crates300k",
+      "header": {
+        "format_version": 1,
+        "schema_id": "663ff081a15bfc51",
+        "encoding": "E3",
+        "fields": [
+          "mask",
+          "coin_dir",
+          "crate_dir",
+          "bomb_yield",
+          "danger",
+          "opp_dir",
+          "attack"
+        ],
+        "radices": [
+          64,
+          6,
+          6,
+          4,
+          2,
+          6,
+          3
+        ],
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ]
+      },
+      "metadata": {
+        "rounds_trained": 975,
+        "steps_trained": 350146,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.05,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 9223372036854775807,
+          "stage": "crates",
+          "seed": 0
+        },
+        "transition_driver_summary": {
+          "format_version": 1,
+          "seed": 0,
+          "origin": 0,
+          "next_stage": 2
+        }
+      },
+      "visited_states": 597,
+      "role": "matched_seed_diagnostic_not_submission_selection"
+    },
+    {
+      "id": "d8_dqn_agent_seed0",
+      "agent": "dqn_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d8_reduced_20260921\\dqn_agent\\run_0\\archive\\transition_000350187\\q_net.npz",
+      "sha256": "253c567e372e8e4625a01381441bca8c6cf3b8ef39ea6e2f52e933eef3aa4394",
+      "origin": "Matched reduced D8, fresh seed, navigation50k + crates300k",
+      "header": {
+        "format_version": 1,
+        "encoder": "onehot_e3",
+        "schema_id": "3963eb07bf146d11",
+        "layer_sizes": [
+          32,
+          128,
+          128,
+          6
+        ],
+        "activation": "relu",
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ],
+        "dtype": "float32"
+      },
+      "metadata": {
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "encoder": "onehot_e3",
+          "policy": "learned",
+          "seed": 0,
+          "init_seed": 0,
+          "gamma": 0.99,
+          "n_step": 1,
+          "lr": 0.0003,
+          "batch_size": 64,
+          "replay_size": 100000,
+          "warmup": 5000,
+          "train_every": 4,
+          "target_every": 1000,
+          "grad_clip": 10.0,
+          "c_coin": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "epsilon_start": 0.3,
+          "epsilon_end": 0.05,
+          "epsilon_fraction": 0.6,
+          "stage": 1,
+          "stage_transitions": 300000,
+          "save_every": 1,
+          "replay_save_every": 50,
+          "probe_every": 10000,
+          "probe_path": "results/dqn/d6_audit_20260918/probe_v2.npz"
+        },
+        "transitions": 350187,
+        "updates": 86297,
+        "rounds_trained": 1171,
+        "parent_checkpoint": null,
+        "stage": "1",
+        "git_commit": null,
+        "exact_history": true,
+        "run_id": "6ec11118f1824251ae7f0a1b85e37900"
+      },
+      "role": "matched_seed_diagnostic_not_submission_selection"
+    },
+    {
+      "id": "d8_tabular_q_agent_seed1",
+      "agent": "tabular_q_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d8_reduced_20260921\\tabular_q_agent\\run_1\\archive\\transition_000350150\\q_table.npz",
+      "sha256": "8995e56dc3570efb9e6b454e9a61e92f2098df6d4d57628f99afc07d242a04bf",
+      "origin": "Matched reduced D8, fresh seed, navigation50k + crates300k",
+      "header": {
+        "format_version": 1,
+        "schema_id": "663ff081a15bfc51",
+        "encoding": "E3",
+        "fields": [
+          "mask",
+          "coin_dir",
+          "crate_dir",
+          "bomb_yield",
+          "danger",
+          "opp_dir",
+          "attack"
+        ],
+        "radices": [
+          64,
+          6,
+          6,
+          4,
+          2,
+          6,
+          3
+        ],
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ]
+      },
+      "metadata": {
+        "rounds_trained": 1004,
+        "steps_trained": 350150,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.05,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 9223372036854775807,
+          "stage": "crates",
+          "seed": 1
+        },
+        "transition_driver_summary": {
+          "format_version": 1,
+          "seed": 1,
+          "origin": 0,
+          "next_stage": 2
+        }
+      },
+      "visited_states": 592,
+      "role": "matched_seed_diagnostic_not_submission_selection"
+    },
+    {
+      "id": "d8_dqn_agent_seed1",
+      "agent": "dqn_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d8_reduced_20260921\\dqn_agent\\run_1\\archive\\transition_000350272\\q_net.npz",
+      "sha256": "7c83218a667100a0e634e0dcd1bce77bc2897d45f550b84c9b9839e9a7fe969e",
+      "origin": "Matched reduced D8, fresh seed, navigation50k + crates300k",
+      "header": {
+        "format_version": 1,
+        "encoder": "onehot_e3",
+        "schema_id": "3963eb07bf146d11",
+        "layer_sizes": [
+          32,
+          128,
+          128,
+          6
+        ],
+        "activation": "relu",
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ],
+        "dtype": "float32"
+      },
+      "metadata": {
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "encoder": "onehot_e3",
+          "policy": "learned",
+          "seed": 1,
+          "init_seed": 1,
+          "gamma": 0.99,
+          "n_step": 1,
+          "lr": 0.0003,
+          "batch_size": 64,
+          "replay_size": 100000,
+          "warmup": 5000,
+          "train_every": 4,
+          "target_every": 1000,
+          "grad_clip": 10.0,
+          "c_coin": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "epsilon_start": 0.3,
+          "epsilon_end": 0.05,
+          "epsilon_fraction": 0.6,
+          "stage": 1,
+          "stage_transitions": 300000,
+          "save_every": 1,
+          "replay_save_every": 50,
+          "probe_every": 10000,
+          "probe_path": "results/dqn/d6_audit_20260918/probe_v2.npz"
+        },
+        "transitions": 350272,
+        "updates": 86319,
+        "rounds_trained": 1165,
+        "parent_checkpoint": null,
+        "stage": "1",
+        "git_commit": null,
+        "exact_history": true,
+        "run_id": "7384bf18033f44fe861a2a80423bcb32"
+      },
+      "role": "matched_seed_diagnostic_not_submission_selection"
+    },
+    {
+      "id": "d8_tabular_q_agent_seed2",
+      "agent": "tabular_q_agent",
+      "source": "results\\dqn\\d8_reduced_20260921\\tabular_q_agent\\run_2\\archive\\transition_000350687\\q_table.npz",
+      "sha256": "3930f346b75eba130708cd6463fcfd751430aabb378582f6ea282b4635bad05a",
+      "origin": "Matched reduced D8, fresh seed, navigation50k + crates300k",
+      "header": {
+        "format_version": 1,
+        "schema_id": "663ff081a15bfc51",
+        "encoding": "E3",
+        "fields": [
+          "mask",
+          "coin_dir",
+          "crate_dir",
+          "bomb_yield",
+          "danger",
+          "opp_dir",
+          "attack"
+        ],
+        "radices": [
+          64,
+          6,
+          6,
+          4,
+          2,
+          6,
+          3
+        ],
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ]
+      },
+      "metadata": {
+        "rounds_trained": 953,
+        "steps_trained": 350687,
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "policy": "learned",
+          "symmetry": true,
+          "gamma": 0.99,
+          "alpha_omega": 0.7,
+          "alpha_min": 0.05,
+          "epsilon": 0.05,
+          "coin_potential": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "bomb_aid": 0.0,
+          "spot_potential": 0.0,
+          "teacher_share": 0.0,
+          "save_every": 9223372036854775807,
+          "stage": "crates",
+          "seed": 2
+        },
+        "transition_driver_summary": {
+          "format_version": 1,
+          "seed": 2,
+          "origin": 0,
+          "next_stage": 2
+        }
+      },
+      "visited_states": 565,
+      "role": "matched_seed_diagnostic_not_submission_selection"
+    },
+    {
+      "id": "d8_dqn_agent_seed2",
+      "agent": "dqn_agent",
+      "source": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d8_reduced_20260921\\dqn_agent\\run_2\\archive\\transition_000350310\\q_net.npz",
+      "sha256": "bc09eb2371b289aa446fb4c9a56101cb91c5282b2a0a70d199332827542e25ec",
+      "origin": "Matched reduced D8, fresh seed, navigation50k + crates300k",
+      "header": {
+        "format_version": 1,
+        "encoder": "onehot_e3",
+        "schema_id": "3963eb07bf146d11",
+        "layer_sizes": [
+          32,
+          128,
+          128,
+          6
+        ],
+        "activation": "relu",
+        "actions": [
+          "UP",
+          "RIGHT",
+          "DOWN",
+          "LEFT",
+          "WAIT",
+          "BOMB"
+        ],
+        "dtype": "float32"
+      },
+      "metadata": {
+        "config": {
+          "mask": "best_tier",
+          "encoding": "E3",
+          "encoder": "onehot_e3",
+          "policy": "learned",
+          "seed": 2,
+          "init_seed": 2,
+          "gamma": 0.99,
+          "n_step": 1,
+          "lr": 0.0003,
+          "batch_size": 64,
+          "replay_size": 100000,
+          "warmup": 5000,
+          "train_every": 4,
+          "target_every": 1000,
+          "grad_clip": 10.0,
+          "c_coin": 0.5,
+          "crate_aid": 0.0,
+          "death_aid": 0.0,
+          "epsilon_start": 0.3,
+          "epsilon_end": 0.05,
+          "epsilon_fraction": 0.6,
+          "stage": 1,
+          "stage_transitions": 300000,
+          "save_every": 1,
+          "replay_save_every": 50,
+          "probe_every": 10000,
+          "probe_path": "results/dqn/d6_audit_20260918/probe_v2.npz"
+        },
+        "transitions": 350310,
+        "updates": 86328,
+        "rounds_trained": 1187,
+        "parent_checkpoint": null,
+        "stage": "1",
+        "git_commit": null,
+        "exact_history": true,
+        "run_id": "5144e58477ac473e8401edc5187299c2"
+      },
+      "role": "matched_seed_diagnostic_not_submission_selection"
+    }
+  ],
+  "packages": {
+    "dqn_stage2_baseline": {
+      "zip": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d12_preparation_20260921_v2\\dqn_stage2_baseline.zip",
+      "zip_sha256": "ca9ad459781803bc13c95ee75b540d162f6aa6e978787e8be0bc4d5d0433d6e6",
+      "model_sha256": "fa724eb4ebebefd2170cb15afe18289e79d023743916252c5ba4238d687c7f33",
+      "members": {
+        "dqn_agent/callbacks.py": "13ccd95677a4ad8735d9ff7d3118eef34499d0b2f92e54b233899826f11a7557",
+        "dqn_agent/config.py": "6874e9980a814937a1cf700723bb1aec6d560959f5836af8fbf5fe4f59f54117",
+        "dqn_agent/core/attack.py": "7a7fd970563bea73cb6f288b4e5449a3b04cf6697baf0b1fc39457a82a90d3ad",
+        "dqn_agent/core/params.py": "3094dcaaa7023965a33accde886d282c44f697ff3e4662bfcde49f8013557874",
+        "dqn_agent/core/planning.py": "7f04b8ad16972881081b50e1d02d7387674d32a156bdd3cc7f82caf2641f1dd1",
+        "dqn_agent/core/safety.py": "33b6161870381eb36794208a11a8e14055e4b9e56d466c3f2af87c81d8017e52",
+        "dqn_agent/core/world_model.py": "f6e9bdbd75737c630f343641c67767834883988d9c5377de86de7f8bde596022",
+        "dqn_agent/encoder.py": "dd19239067a6a5939e692cbcbea59254118531dd7265ed566e643c534bf2f389",
+        "dqn_agent/features.py": "96120079d8eb61b35b17741ed7470a3086c599891e0aa05b661e7b2c495a6a2e",
+        "dqn_agent/mask.py": "2fdad5f1eec3aed89815813a26b2fca51a5eb51ef4cdb5b32fd518a28a093c38",
+        "dqn_agent/network.py": "877b55d0b11522d1c6118c5534acc1cfcb3db87927c989cc641872140e0101a2",
+        "dqn_agent/symmetry.py": "d854b1a1fd01a194dacce2d62d9a37dab27d4168b9dd496227f4815d0bdf3cc6",
+        "dqn_agent/model/q_net.npz": "fa724eb4ebebefd2170cb15afe18289e79d023743916252c5ba4238d687c7f33"
+      },
+      "backup": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d12_preparation_20260921_v2\\weights_backup\\dqn_stage2_baseline\\q_net.npz"
+    },
+    "tabular_blended": {
+      "zip": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d12_preparation_20260921_v2\\tabular_blended.zip",
+      "zip_sha256": "1e1df5cc3cef352abc27d7142484ea4de3cec12ae21517ee9684b710d4e5174c",
+      "model_sha256": "ffd992c6e5c8236d1c012d31bf43b7ed737542cdc19ab8965702c1cd3afeef2d",
+      "members": {
+        "tabular_q_agent/bookkeeping.py": "0e013dc0f075dca7ce1183c50bfd715478a8bf1d0f08136b2ed7c291cebc4442",
+        "tabular_q_agent/callbacks.py": "5085ff8e2f1455143bc0bd9b45ea5dbbc22ffd2729bdd22a785ff0b95550cd43",
+        "tabular_q_agent/config.py": "7c334eacdce271200502c6369564d2df1d5ea163dba92ea3fe6f8e26ed30a4dc",
+        "tabular_q_agent/core/attack.py": "7a7fd970563bea73cb6f288b4e5449a3b04cf6697baf0b1fc39457a82a90d3ad",
+        "tabular_q_agent/core/params.py": "3094dcaaa7023965a33accde886d282c44f697ff3e4662bfcde49f8013557874",
+        "tabular_q_agent/core/planning.py": "7f04b8ad16972881081b50e1d02d7387674d32a156bdd3cc7f82caf2641f1dd1",
+        "tabular_q_agent/core/safety.py": "33b6161870381eb36794208a11a8e14055e4b9e56d466c3f2af87c81d8017e52",
+        "tabular_q_agent/core/world_model.py": "f6e9bdbd75737c630f343641c67767834883988d9c5377de86de7f8bde596022",
+        "tabular_q_agent/features.py": "96120079d8eb61b35b17741ed7470a3086c599891e0aa05b661e7b2c495a6a2e",
+        "tabular_q_agent/heuristic.py": "25b01df5d78a1fb9d8bf632554a620afb33a2f235fe6f4cf447f066e5dfb5645",
+        "tabular_q_agent/learner.py": "41139f5ab36b9611f141cdb6e4286d390ce0eb95beabf67b7bd1059f34694b28",
+        "tabular_q_agent/mask.py": "2fdad5f1eec3aed89815813a26b2fca51a5eb51ef4cdb5b32fd518a28a093c38",
+        "tabular_q_agent/metrics.py": "20ed686c3f20f41f4701c3654fdf33d3cce37014f7aed442467d85b518c5d814",
+        "tabular_q_agent/qtable.py": "9489ee26fdb3026ebd635b639225fd6d5c86f57adecff7205b2077d0a38b2a54",
+        "tabular_q_agent/rewards.py": "0afc7667eed71aeb7e9bc08b91faaee8b14bcdbdf74fc1919d089c71d71f2997",
+        "tabular_q_agent/symmetry.py": "d854b1a1fd01a194dacce2d62d9a37dab27d4168b9dd496227f4815d0bdf3cc6",
+        "tabular_q_agent/transitions.py": "dacd40b459875a2fd40a1f7376f6ab3334ffa1b1fa851e32bff5e86c0fc9b478",
+        "tabular_q_agent/model/q_table.npz": "ffd992c6e5c8236d1c012d31bf43b7ed737542cdc19ab8965702c1cd3afeef2d"
+      },
+      "backup": "C:\\Users\\ivans\\Desktop\\ML Final Project 2026\\bomberman_rl\\results\\dqn\\d12_preparation_20260921_v2\\weights_backup\\tabular_blended\\q_table.npz"
+    }
+  },
+  "candidate_selection_reason": "Retain previously designated practical DQN; accept current upstream blended table after compatible validation. No best D8 seed is selected after seeing held-out results.",
+  "presets": {
+    "vs-rule-based": {
+      "seats": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "primary": true
+    },
+    "vs-peaceful": {
+      "seats": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "vs-coin-collector": {
+      "seats": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "mixed": {
+      "seats": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "coin-heaven-solo": {
+      "seats": [
+        0
+      ]
+    },
+    "crates-solo": {
+      "seats": [
+        0
+      ]
+    }
+  },
+  "seeds": [
+    3000,
+    3001,
+    3002,
+    3003,
+    3004,
+    3005,
+    3006,
+    3007,
+    3008,
+    3009,
+    3010,
+    3011,
+    3012,
+    3013,
+    3014,
+    3015,
+    3016,
+    3017,
+    3018,
+    3019,
+    3020,
+    3021,
+    3022,
+    3023,
+    3024,
+    3025,
+    3026,
+    3027,
+    3028,
+    3029,
+    3030,
+    3031,
+    3032,
+    3033,
+    3034,
+    3035,
+    3036,
+    3037,
+    3038,
+    3039,
+    3040,
+    3041,
+    3042,
+    3043,
+    3044,
+    3045,
+    3046,
+    3047,
+    3048,
+    3049,
+    3050,
+    3051,
+    3052,
+    3053,
+    3054,
+    3055,
+    3056,
+    3057,
+    3058,
+    3059,
+    3060,
+    3061,
+    3062,
+    3063,
+    3064,
+    3065,
+    3066,
+    3067,
+    3068,
+    3069,
+    3070,
+    3071,
+    3072,
+    3073,
+    3074,
+    3075,
+    3076,
+    3077,
+    3078,
+    3079,
+    3080,
+    3081,
+    3082,
+    3083,
+    3084,
+    3085,
+    3086,
+    3087,
+    3088,
+    3089,
+    3090,
+    3091,
+    3092,
+    3093,
+    3094,
+    3095,
+    3096,
+    3097,
+    3098,
+    3099
+  ],
+  "candidate_rng": 500,
+  "opponent_rng": "private NumPy RandomState and Python Random: 10*world_seed + seat; setup entropy isolated and caller RNG restored",
+  "reference": "rule_based_agent in candidate seat, same opponent streams; shared only when preset/seed/seat/framework/RNG protocol match exactly",
+  "head_to_head": {
+    "seeds": [
+      3000,
+      3001,
+      3002,
+      3003,
+      3004,
+      3005,
+      3006,
+      3007,
+      3008,
+      3009,
+      3010,
+      3011,
+      3012,
+      3013,
+      3014,
+      3015,
+      3016,
+      3017,
+      3018,
+      3019,
+      3020,
+      3021,
+      3022,
+      3023,
+      3024,
+      3025,
+      3026,
+      3027,
+      3028,
+      3029,
+      3030,
+      3031,
+      3032,
+      3033,
+      3034,
+      3035,
+      3036,
+      3037,
+      3038,
+      3039,
+      3040,
+      3041,
+      3042,
+      3043,
+      3044,
+      3045,
+      3046,
+      3047,
+      3048,
+      3049
+    ],
+    "lineup": [
+      "frozen_dqn",
+      "frozen_table",
+      "rule_A",
+      "rule_B"
+    ],
+    "permutations": 24,
+    "rule_rng": "10*world_seed+seat+1000000*identity; rule_A=0,rule_B=1",
+    "games": 1200
+  },
+  "round_limit": 400,
+  "train": false,
+  "epsilon": 0,
+  "inference": "NumPy,strict explicit model",
+  "jobs": 2,
+  "latency_jobs": 1,
+  "budget_games": {
+    "per_model": 1800,
+    "models": 8,
+    "shared_reference": 1800,
+    "head_to_head": 1200,
+    "total": 17400
+  },
+  "statistics": {
+    "primary": "mean raw score and paired delta vs reference",
+    "interval": "95% percentile bootstrap,20000 draws,RNG20260921; resample world seeds, retaining all seats/lineup permutations in cluster",
+    "matched_study": "also resample training seeds as outer unit; keep practical baseline and blended model separate from D8 seed panels",
+    "selection": "Compare practical candidates only: larger paired delta; overlapping delta CIs -> fewer suicides in primary games; remaining tie -> table",
+    "additional": [
+      "credited kills",
+      "coins",
+      "suicides",
+      "survival",
+      "invalid",
+      "timeouts"
+    ]
+  },
+  "failures": "Record all failed/limited games; no post-hoc seed removal, tuning, model replacement or automatic budget extension",
+  "integrity": "Verify board/positions, frozen hashes, explicit loaded arrays, no trainer/Torch, no writes to weights; preserve every per-game row",
+  "scope_note": "Q12 unavailable, confirmed by user; secondary presets are an explicit operational definition from repository tasks, not claimed Q12 text. Full D8 combat curriculum is still absent; no training is added."
+}

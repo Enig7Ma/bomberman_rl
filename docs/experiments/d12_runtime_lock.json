@@ -1,0 +1,238 @@
+{
+  "status": "Docker build and Linux package verification completed; held-out not run",
+  "date": "2026-09-21",
+  "protocol_sha256": "05e091bd4c8653585cf677feabf050bb621d10ceef5f6d830720e55b3f679ff0",
+  "source_hashes": {
+    "Dockerfile": "427741aa70703034ff1e1034c20e2abdf6aad4483e67e21c477747976fae8833",
+    "docs\\experiments\\d12_linux.py": "021746217a079c5a26d56e97fb45baea174cb1bc3483dc5821e446d5bc812b2e",
+    "docs\\experiments\\d12_probe.py": "2e5411cd7538748a2afae811d58fc218275c8f2e949f3354609114190f0e99ee"
+  },
+  "image": {
+    "Id": "sha256:0cc76dde373c670a5d185ca79826ece4bc48089cf6b6a68e6f4e0f527b3670a3",
+    "RepoDigests": [
+      "bomberman-d12@sha256:0cc76dde373c670a5d185ca79826ece4bc48089cf6b6a68e6f4e0f527b3670a3"
+    ],
+    "Os": "linux",
+    "Architecture": "amd64",
+    "Created": "2026-09-21T14:11:14.67680855Z",
+    "Size": 3614002155
+  },
+  "limits": {
+    "network": "none",
+    "cpus": 1,
+    "OPENBLAS_NUM_THREADS": 1,
+    "OMP_NUM_THREADS": 1
+  },
+  "linux": {
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.41",
+    "python": "3.12.14 (main, Sep  2 2026, 23:27:36) [GCC 15.3.0]",
+    "versions": {
+      "numpy": "2.5.3",
+      "pygame": "2.6.1",
+      "scipy": "1.18.1",
+      "torch": "2.6.0",
+      "tensorflow": "2.21.0"
+    },
+    "agents": {
+      "dqn_agent": {
+        "model_sha256": "fa724eb4ebebefd2170cb15afe18289e79d023743916252c5ba4238d687c7f33",
+        "setup_seconds": 0.002130874000613403,
+        "game": {
+          "seconds": 0.6412564789998214,
+          "actions": 1200,
+          "mean_ms": 0.3654828425017816,
+          "p99_ms": 0.6465356499575137,
+          "max_ms": 3.0108580003798124,
+          "stats": {
+            "by_agent": {
+              "dqn_agent": {
+                "bombs": 170,
+                "coins": 4,
+                "crates": 52,
+                "moves": 735,
+                "rounds": 3,
+                "score": 4,
+                "steps": 1200,
+                "time": 0.4400808811187744
+              },
+              "random_agent_0": {
+                "bombs": 3,
+                "crates": 9,
+                "invalid": 35,
+                "moves": 11,
+                "rounds": 3,
+                "score": 0,
+                "steps": 49,
+                "suicides": 3,
+                "time": 0.0030722618103027344
+              },
+              "random_agent_1": {
+                "bombs": 3,
+                "crates": 7,
+                "invalid": 22,
+                "moves": 8,
+                "rounds": 3,
+                "score": 0,
+                "steps": 33,
+                "suicides": 3,
+                "time": 0.0014743804931640625
+              },
+              "random_agent_2": {
+                "bombs": 3,
+                "crates": 8,
+                "invalid": 29,
+                "moves": 20,
+                "rounds": 3,
+                "score": 0,
+                "steps": 52,
+                "suicides": 3,
+                "time": 0.0023827552795410156
+              }
+            },
+            "by_round": {
+              "Round 01 (2026-09-21 14-22-03)": {
+                "coins": 1,
+                "kills": 0,
+                "steps": 400,
+                "suicides": 3
+              },
+              "Round 02 (2026-09-21 14-22-03)": {
+                "coins": 1,
+                "kills": 0,
+                "steps": 400,
+                "suicides": 3
+              },
+              "Round 03 (2026-09-21 14-22-03)": {
+                "coins": 2,
+                "kills": 0,
+                "steps": 400,
+                "suicides": 3
+              }
+            }
+          }
+        },
+        "timeouts": 0,
+        "skips": 0,
+        "explicit_rejections": {
+          "missing": "FileNotFoundError",
+          "corrupt": "ValueError",
+          "schema": "ModelFormatError"
+        },
+        "acceptance": {
+          "setup": true,
+          "p99": true,
+          "max": true,
+          "timeouts": true
+        }
+      },
+      "tabular_q_agent": {
+        "model_sha256": "ffd992c6e5c8236d1c012d31bf43b7ed737542cdc19ab8965702c1cd3afeef2d",
+        "setup_seconds": 0.06268397099938738,
+        "game": {
+          "seconds": 0.596059879000677,
+          "actions": 958,
+          "mean_ms": 0.41451927765235735,
+          "p99_ms": 0.7682066902816581,
+          "max_ms": 3.00489499932155,
+          "stats": {
+            "by_agent": {
+              "random_agent_0": {
+                "bombs": 4,
+                "crates": 10,
+                "invalid": 29,
+                "moves": 11,
+                "rounds": 3,
+                "score": 0,
+                "steps": 44,
+                "suicides": 3,
+                "time": 0.0028162002563476562
+              },
+              "random_agent_1": {
+                "bombs": 3,
+                "crates": 7,
+                "invalid": 44,
+                "moves": 32,
+                "rounds": 3,
+                "score": 0,
+                "steps": 79,
+                "suicides": 3,
+                "time": 0.003967761993408203
+              },
+              "random_agent_2": {
+                "bombs": 3,
+                "crates": 7,
+                "invalid": 9,
+                "moves": 9,
+                "rounds": 3,
+                "score": 0,
+                "steps": 21,
+                "suicides": 3,
+                "time": 0.0009682178497314453
+              },
+              "tabular_q_agent": {
+                "bombs": 107,
+                "coins": 27,
+                "crates": 350,
+                "moves": 774,
+                "rounds": 3,
+                "score": 27,
+                "steps": 958,
+                "time": 0.3981919288635254
+              }
+            },
+            "by_round": {
+              "Round 01 (2026-09-21 14-22-06)": {
+                "coins": 9,
+                "kills": 0,
+                "steps": 305,
+                "suicides": 3
+              },
+              "Round 02 (2026-09-21 14-22-06)": {
+                "coins": 9,
+                "kills": 0,
+                "steps": 316,
+                "suicides": 3
+              },
+              "Round 03 (2026-09-21 14-22-07)": {
+                "coins": 9,
+                "kills": 0,
+                "steps": 337,
+                "suicides": 3
+              }
+            }
+          }
+        },
+        "timeouts": 0,
+        "skips": 0,
+        "explicit_rejections": {
+          "missing": "FileNotFoundError",
+          "corrupt": "ValueError",
+          "schema": "SchemaMismatchError"
+        },
+        "acceptance": {
+          "setup": true,
+          "p99": true,
+          "max": true,
+          "timeouts": true
+        }
+      }
+    }
+  },
+  "evidence": "results/dqn/d12_final_20260921/linux_verified",
+  "technical_games": {
+    "completed_verification": 6,
+    "earlier_harness_failure_after_dqn_games": 3,
+    "total": 9
+  },
+  "held_out_games": 0,
+  "limitations": [
+    "Smoke opponents are not a paired strength comparison.",
+    "Floating repositories can produce a different rebuilt image; use this immutable image ID.",
+    "Miniconda base emits a deprecation notice; no runtime failure in completed probes."
+  ],
+  "prior_failures": [
+    "Original floating base Python 3.14 unsupported by TensorFlow wheel.",
+    "Pinning base Python encountered Conda channel terms and ABI conflicts; isolated conda-forge prefix resolved them without accepting terms.",
+    "First Linux dependency assertion omitted standard Conda _sysconfigdata module; fixed checker, preserved failure evidence."
+  ]
+}

@@ -1,5 +1,19 @@
 # Practical candidates, D8 gaps and D12 preparation
 
+**Latest, 2026-09-21:** the three authorized preparation steps are complete:
+25-map blended-table validation (score5.84), candidate/protocol freeze, and full
+Docker build with successful Linux checks for both packages. See
+[report](d12_freeze_and_linux.md), [frozen protocol](d12_frozen_protocol.json)
+and [runtime lock](d12_runtime_lock.json). No held-out games, final winner,
+submission or Git publication yet. The earlier pending statements below record
+the state before this work and do not supersede this update.
+
+**D12 packaging preparation, 2026-09-21:** [manifest](d12_manifest.json) and
+[checks/proposed final protocol](d12_preparation.md) now cover nine model
+identities and isolated ZIP checks for baseline DQN and Maria's blended table.
+Full D12, Docker build, blended-table strength validation and held-out evaluation
+remain pending. The user confirms no separate tabular Q12 document is available.
+
 **2026-09-21 update:** the user subsequently authorized and completed reduced D8
 (both learners, three fresh seeds, navigation50k + crates300k). The transition
 driver prerequisite described below is now implemented. See
