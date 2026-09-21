@@ -63,7 +63,12 @@ def _is_init_seed(value: object) -> bool:
 class Config:
     mask: MaskVariant = "best_tier"
     encoding: Literal["E3"] = "E3"
-    encoder: str = "onehot_e3"
+    # The shipped network's input. ``onehot_e3`` carries exactly the tabular
+    # agent's information and exists for the strict comparison; ``dense_v1``
+    # adds the distances and graded safety behind those categories, ``dense_v2``
+    # the direction to the nearest opponent at any range, and ``dense_v3`` the
+    # coin race. The model in ``model/`` is a ``dense_v2`` network.
+    encoder: str = "dense_v2"
     policy: Policy = "learned"
     seed: int | None = None
     init_seed: int | None = None
@@ -79,6 +84,28 @@ class Config:
     c_coin: float = 0.5
     crate_aid: float = 0.0
     death_aid: float = 0.0
+    # Paid on a confirmed BOMB drop, per live crate the bomb will destroy: an
+    # immediate anchor for demolition, which the crate reward alone reaches
+    # only four steps and one escape later. A useless bomb still earns nothing.
+    bomb_aid: float = 0.0
+    # Potential shaping ``c / (1 + d)`` on the distance to the best bombing
+    # spot, added to the coin potential. Use together with ``bomb_aid``.
+    spot_potential: float = 0.0
+    # Paid on a confirmed bomb drop, times the attack category (1 pressure,
+    # 2 trap): the same immediate anchor as ``bomb_aid``, for opponents. A kill
+    # is worth 5 but arrives several steps later, and the states where one is
+    # available are rare, so the raw score alone is a thin training signal.
+    attack_aid: float = 0.0
+    # Potential ``c / (1 + d)`` on the distance to the nearest opponent. After
+    # the last coin and the last crate, every other reward term is zero; this
+    # one is what is left to steer by, and being a potential of the state it
+    # cannot change which policy is optimal.
+    hunt_potential: float = 0.0
+    # Share of training steps played by the vendored search policy instead of
+    # the epsilon-greedy one (``teacher.py``). Off-policy learning keeps the
+    # learned values those of the network's own greedy policy; this only moves
+    # the data. 0 outside training regardless, and never used at inference.
+    teacher_share: float = 0.0
     epsilon_start: float = 0.3
     epsilon_end: float = 0.05
     epsilon_fraction: float = 0.6
@@ -129,6 +156,11 @@ class Config:
             "c_coin",
             "crate_aid",
             "death_aid",
+            "bomb_aid",
+            "spot_potential",
+            "attack_aid",
+            "hunt_potential",
+            "teacher_share",
             "epsilon_start",
             "epsilon_end",
             "epsilon_fraction",
@@ -144,6 +176,8 @@ class Config:
             raise ValueError(
                 "gamma must be in [0,1]; lr and grad_clip must be positive"
             )
+        if not 0 <= self.teacher_share <= 1:
+            raise ValueError("teacher_share must be in [0, 1]")
         if not 0 <= self.epsilon_end <= self.epsilon_start <= 1:
             raise ValueError("expected 0 <= epsilon_end <= epsilon_start <= 1")
         if type(self.stage) is not int or not 0 <= self.stage <= 255:

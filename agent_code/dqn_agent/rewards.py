@@ -38,6 +38,18 @@ class Rewards:
     death_aid: float = 0.0
     bomb_aid: float = 0.0
     spot_potential: float = 0.0
+    # Paid on a confirmed bomb drop, times the attack category (1 pressure,
+    # 2 trap). A kill is worth 5 but arrives four steps and one escape later,
+    # and the states where it is available are rare; this is the same
+    # immediate anchor as ``bomb_aid``, for opponents instead of crates.
+    attack_aid: float = 0.0
+    # Potential ``c / (1 + d)`` on the walking distance to the nearest
+    # opponent. Like the other potentials it is a function of the observation
+    # alone, so it cannot change which policy is optimal (Ng et al., 1999).
+    # It exists for the third of a round that happens after the last coin and
+    # the last crate are gone, where every other signal in the reward and in
+    # the features is identically zero and the agent has nothing to steer by.
+    hunt_potential: float = 0.0
 
     def base(self, events: Sequence[str]) -> float:
         return float(
@@ -51,14 +63,18 @@ class Rewards:
             aid += self.death_aid
         return aid
 
-    def bomb(self, crates: int) -> float:
-        """The aid for a confirmed bomb drop that will destroy ``crates``."""
-        return self.bomb_aid * crates
+    def bomb(self, crates: int, attack: int = 0) -> float:
+        """The aid for a confirmed bomb drop: per live crate it will destroy,
+        plus the attack aid times the category of what it does to opponents."""
+        return self.bomb_aid * crates + self.attack_aid * attack
 
     def potential(
-        self, coin_distance: int | None, crate_distance: int | None = None
+        self,
+        coin_distance: int | None,
+        crate_distance: int | None = None,
+        opponent_distance: int | None = None,
     ) -> float:
-        """Coin potential plus bombing-spot potential, both ``c / (1 + d)``.
+        """Coin, bombing-spot and opponent potentials, each ``c / (1 + d)``.
 
         The spot potential drops when a bomb books its spot's crates (the next
         spot is farther away), a shaping penalty on ``BOMB`` of about
@@ -70,6 +86,8 @@ class Rewards:
             phi += self.coin_potential / (1 + coin_distance)
         if crate_distance is not None:
             phi += self.spot_potential / (1 + crate_distance)
+        if opponent_distance is not None:
+            phi += self.hunt_potential / (1 + opponent_distance)
         return phi
 
     def shaping(self, phi: float, phi_next: float) -> float:

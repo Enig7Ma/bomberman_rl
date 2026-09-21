@@ -10,6 +10,10 @@ import events as e
 from agent_code.dqn_agent.replay import ReplayBuffer, ReplayTransition
 from agent_code.dqn_agent.rewards import Rewards
 
+# events, coin distance, next coin distance, terminal, crates a bomb booked,
+# spot distance, next spot distance
+RewardCase = tuple[list[str], int | None, int | None, bool, int, int | None, int | None]
+
 
 def transition(index: int = 0, /, **changes: object) -> ReplayTransition:
     return replace(
@@ -125,7 +129,7 @@ def test_reward_components_match_rewards_after_coefficient_changes(
 ) -> None:
     rng = np.random.default_rng(72)
     replay = ReplayBuffer(100, 2)
-    inputs: list[tuple[list[str], int | None, int | None, bool]] = []
+    inputs: list[RewardCase] = []
     for i in range(100):
         crates = int(rng.integers(8))
         dead = bool(rng.integers(2))
@@ -139,7 +143,11 @@ def test_reward_components_match_rewards_after_coefficient_changes(
         )
         distance = None if i % 5 == 0 else int(rng.integers(25))
         next_distance = None if i % 7 == 0 else int(rng.integers(25))
+        spot = None if i % 4 == 0 else int(rng.integers(25))
+        next_spot = None if i % 6 == 0 else int(rng.integers(25))
+        bombs = int(rng.integers(4)) if i % 2 else 0
         unit = Rewards(gamma, coin_potential=1)
+        spot_unit = Rewards(gamma, spot_potential=1)
         replay.push(
             transition(
                 i,
@@ -148,12 +156,38 @@ def test_reward_components_match_rewards_after_coefficient_changes(
                 deaths=int(dead),
                 phi_unit=unit.potential(distance),
                 phi_unit_next=unit.potential(next_distance),
+                bombs=bombs,
+                spot_unit=spot_unit.potential(None, spot),
+                spot_unit_next=spot_unit.potential(None, next_spot),
                 done=terminal,
             )
         )
-        inputs.append((events, distance, next_distance, terminal))
-    for coin, crate, death in ((0, 0, 0), (0.5, 0, 0), (1.5, 0.25, -2), (0, -0.5, -1)):
-        rewards = Rewards(gamma, coin_potential=coin, crate_aid=crate, death_aid=death)
+        case: RewardCase = (
+            events,
+            distance,
+            next_distance,
+            terminal,
+            bombs,
+            spot,
+            next_spot,
+        )
+        inputs.append(case)
+    settings = (
+        (0, 0, 0, 0, 0),
+        (0.5, 0, 0, 0, 0),
+        (1.5, 0.25, -2, 0.1, 0.2),
+        (0, -0.5, -1, 0.5, 0.75),
+        (0.5, 0, -1, 0.1, 0.2),
+    )
+    for coin, crate, death, bomb, spot_c in settings:
+        rewards = Rewards(
+            gamma,
+            coin_potential=coin,
+            crate_aid=crate,
+            death_aid=death,
+            bomb_aid=bomb,
+            spot_potential=spot_c,
+        )
         batch = replay.sample(
             500,
             np.random.default_rng(6),
@@ -161,15 +195,19 @@ def test_reward_components_match_rewards_after_coefficient_changes(
             c_coin=coin,
             crate_aid=crate,
             death_aid=death,
+            bomb_aid=bomb,
+            spot_potential=spot_c,
         )
         expected: list[float] = []
         for index in batch.transition_id:
-            events, d, next_d, terminal = inputs[int(index)]
+            events, d, next_d, terminal, bombs, spot, next_spot = inputs[int(index)]
             expected.append(
                 rewards.base(events)
                 + rewards.aids(events)
+                + rewards.bomb(bombs)
                 + rewards.shaping(
-                    rewards.potential(d), 0.0 if terminal else rewards.potential(next_d)
+                    rewards.potential(d, spot),
+                    0.0 if terminal else rewards.potential(next_d, next_spot),
                 )
             )
         np.testing.assert_allclose(batch.r, expected, atol=2e-6, rtol=1e-6)

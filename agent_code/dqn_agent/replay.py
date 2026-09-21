@@ -8,10 +8,31 @@ retain discounting and shaping when coefficients change at sampling time.
 
 import math
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, Final, cast
 
 import numpy as np
 from numpy.typing import NDArray
+
+# One row's reward ingredients, per step of the (1..3)-step sequence:
+# base score delta, crates destroyed, deaths, coin potential before and after,
+# crates a confirmed bomb booked, spot potential before and after, and the
+# attack category of a confirmed bomb drop, and the opponent potential before
+# and after.
+COMPONENT_NAMES: Final = (
+    "base",
+    "crates",
+    "deaths",
+    "phi_unit",
+    "phi_unit_next",
+    "bombs",
+    "spot_unit",
+    "spot_unit_next",
+    "attacks",
+    "hunt_unit",
+    "hunt_unit_next",
+)
+COMPONENTS: Final = len(COMPONENT_NAMES)
+FORMAT_VERSION: Final = 5
 
 
 @dataclass(frozen=True)
@@ -29,8 +50,24 @@ class ReplayTransition:
     stage: int
     round_id: int
     transition_id: int
-    # Ordered (base, crates, deaths, phi, phi_next), not pre-discounted.
-    reward_steps: tuple[tuple[float, int, int, float, float], ...] = ()
+    # Live crates a confirmed bomb drop booked, for the ``bomb_aid`` anchor; 0
+    # on every other action.
+    bombs: int = 0
+    # ``1 / (1 + d)`` on the distance to the best bombing spot, the second
+    # potential; times ``spot_potential`` at sample time.
+    spot_unit: float = 0.0
+    spot_unit_next: float = 0.0
+    # 0 none, 1 pressure, 2 trap, and 0 unless a bomb was actually dropped.
+    attacks: int = 0
+    # ``1 / (1 + d)`` on the distance to the nearest opponent; times
+    # ``hunt_potential`` at sample time.
+    hunt_unit: float = 0.0
+    hunt_unit_next: float = 0.0
+    # Ordered COMPONENTS per step, not pre-discounted.
+    reward_steps: tuple[
+        tuple[float, int, int, float, float, int, float, float, int, float, float],
+        ...,
+    ] = ()
 
 
 @dataclass(frozen=True)
@@ -44,6 +81,12 @@ class ReplayBatch:
     deaths: NDArray[np.uint8]
     phi_unit: NDArray[np.float32]
     phi_unit_next: NDArray[np.float32]
+    bombs: NDArray[np.uint8]
+    spot_unit: NDArray[np.float32]
+    spot_unit_next: NDArray[np.float32]
+    attacks: NDArray[np.uint8]
+    hunt_unit: NDArray[np.float32]
+    hunt_unit_next: NDArray[np.float32]
     x_next: NDArray[np.float32]
     mask_next: NDArray[np.bool_]
     done: NDArray[np.bool_]
@@ -104,6 +147,12 @@ class ReplayBuffer:
                     ("deaths", np.uint8),
                     ("phi_unit", np.float32),
                     ("phi_unit_next", np.float32),
+                    ("bombs", np.uint8),
+                    ("spot_unit", np.float32),
+                    ("spot_unit_next", np.float32),
+                    ("attacks", np.uint8),
+                    ("hunt_unit", np.float32),
+                    ("hunt_unit_next", np.float32),
                     ("x_next", np.float32, (input_dim,)),
                     ("mask_next", np.bool_, (6,)),
                     ("done", np.bool_),
@@ -111,7 +160,7 @@ class ReplayBuffer:
                     ("round_id", np.uint32),
                     ("transition_id", np.uint64),
                     ("k", np.uint8),
-                    ("components", np.float32, (3, 5)),
+                    ("components", np.float32, (3, COMPONENTS)),
                 ]
             ),
         )
@@ -137,6 +186,8 @@ class ReplayBuffer:
             ("a", t.a, 5),
             ("crates", t.crates, 255),
             ("deaths", t.deaths, 1),
+            ("bombs", t.bombs, 255),
+            ("attacks", t.attacks, 2),
             ("stage", t.stage, 255),
             ("round_id", t.round_id, 2**32 - 1),
             ("transition_id", t.transition_id, 2**64 - 1),
@@ -146,10 +197,22 @@ class ReplayBuffer:
             ("base", t.base),
             ("phi_unit", t.phi_unit),
             ("phi_unit_next", t.phi_unit_next),
+            ("spot_unit", t.spot_unit),
+            ("spot_unit_next", t.spot_unit_next),
+            ("hunt_unit", t.hunt_unit),
+            ("hunt_unit_next", t.hunt_unit_next),
         ):
             _finite(value, name)
-        if not 0 <= t.phi_unit <= 1 or not 0 <= t.phi_unit_next <= 1:
-            raise ValueError("unit potentials must be in [0, 1]")
+        for name in (
+            "phi_unit",
+            "phi_unit_next",
+            "spot_unit",
+            "spot_unit_next",
+            "hunt_unit",
+            "hunt_unit_next",
+        ):
+            if not 0 <= getattr(t, name) <= 1:
+                raise ValueError("unit potentials must be in [0, 1]")
         steps = t.reward_steps or (
             (
                 t.base,
@@ -157,21 +220,48 @@ class ReplayBuffer:
                 t.deaths,
                 t.phi_unit,
                 0.0 if t.done else t.phi_unit_next,
+                t.bombs,
+                t.spot_unit,
+                0.0 if t.done else t.spot_unit_next,
+                t.attacks,
+                t.hunt_unit,
+                0.0 if t.done else t.hunt_unit_next,
             ),
         )
         if not 1 <= len(steps) <= 3:
             raise ValueError("sequence length must be in 1..3")
-        components = np.zeros((3, 5), dtype=np.float32)
-        for i, (base, crates, deaths, phi, phi_next) in enumerate(steps):
+        components = np.zeros((3, COMPONENTS), dtype=np.float32)
+        for i, step in enumerate(steps):
+            if len(step) != COMPONENTS:
+                raise ValueError(f"a sequence step has {COMPONENTS} components")
+            (
+                base,
+                crates,
+                deaths,
+                phi,
+                phi_next,
+                bombs,
+                spot,
+                spot_next,
+                attacks,
+                hunt,
+                hunt_next,
+            ) = step
             _integer(crates, "sequence crates", 0, 255)
             _integer(deaths, "sequence deaths", 0, 1)
-            for value in (base, phi, phi_next):
+            _integer(bombs, "sequence bombs", 0, 255)
+            _integer(attacks, "sequence attacks", 0, 2)
+            for value in (base, phi, phi_next, spot, spot_next, hunt, hunt_next):
                 _finite(value, "sequence component")
-            if not 0 <= phi <= 1 or not 0 <= phi_next <= 1:
+            if any(
+                not 0 <= v <= 1
+                for v in (phi, phi_next, spot, spot_next, hunt, hunt_next)
+            ):
                 raise ValueError("invalid sequence potential")
-            components[i] = (base, crates, deaths, phi, phi_next)
+            components[i] = step
         if t.done:
-            components[len(steps) - 1, 4] = 0
+            for column in (4, 7, 10):
+                components[len(steps) - 1, column] = 0
         self._rows[self._write] = (
             t.x,
             t.a,
@@ -180,6 +270,12 @@ class ReplayBuffer:
             t.deaths,
             t.phi_unit,
             0.0 if t.done else t.phi_unit_next,
+            t.bombs,
+            t.spot_unit,
+            0.0 if t.done else t.spot_unit_next,
+            t.attacks,
+            t.hunt_unit,
+            0.0 if t.done else t.hunt_unit_next,
             np.zeros_like(t.x_next) if t.done else t.x_next,
             np.zeros_like(t.mask_next) if t.done else t.mask_next,
             t.done,
@@ -201,6 +297,10 @@ class ReplayBuffer:
         c_coin: float = 0.0,
         crate_aid: float = 0.0,
         death_aid: float = 0.0,
+        bomb_aid: float = 0.0,
+        spot_potential: float = 0.0,
+        attack_aid: float = 0.0,
+        hunt_potential: float = 0.0,
     ) -> ReplayBatch:
         """Uniform independent draws with replacement from filled slots only.
 
@@ -217,6 +317,10 @@ class ReplayBuffer:
             ("c_coin", c_coin),
             ("crate_aid", crate_aid),
             ("death_aid", death_aid),
+            ("bomb_aid", bomb_aid),
+            ("spot_potential", spot_potential),
+            ("attack_aid", attack_aid),
+            ("hunt_potential", hunt_potential),
         ):
             _finite(value, name)
         if not 0 <= gamma <= 1:
@@ -227,17 +331,37 @@ class ReplayBuffer:
             rows["base"].astype(np.float64)
             + crate_aid * rows["crates"].astype(np.float64)
             + death_aid * rows["deaths"].astype(np.float64)
+            + bomb_aid * rows["bombs"].astype(np.float64)
+            + attack_aid * rows["attacks"].astype(np.float64)
             + c_coin
             * (
                 gamma * rows["phi_unit_next"].astype(np.float64)
                 - rows["phi_unit"].astype(np.float64)
             )
+            + spot_potential
+            * (
+                gamma * rows["spot_unit_next"].astype(np.float64)
+                - rows["spot_unit"].astype(np.float64)
+            )
+            + hunt_potential
+            * (
+                gamma * rows["hunt_unit_next"].astype(np.float64)
+                - rows["hunt_unit"].astype(np.float64)
+            )
         )
         multi = rows["k"] > 1
         if multi.any():
             c = rows["components"][multi].astype(np.float64)
-            per_step = c[:, :, 0] + crate_aid * c[:, :, 1] + death_aid * c[:, :, 2]
+            per_step = (
+                c[:, :, 0]
+                + crate_aid * c[:, :, 1]
+                + death_aid * c[:, :, 2]
+                + bomb_aid * c[:, :, 5]
+                + attack_aid * c[:, :, 8]
+            )
             per_step += c_coin * (gamma * c[:, :, 4] - c[:, :, 3])
+            per_step += spot_potential * (gamma * c[:, :, 7] - c[:, :, 6])
+            per_step += hunt_potential * (gamma * c[:, :, 10] - c[:, :, 9])
             reward[multi] = np.sum(per_step * np.power(gamma, np.arange(3)), axis=1)
         if (
             not np.isfinite(reward).all()
@@ -252,6 +376,12 @@ class ReplayBuffer:
             deaths=cast(NDArray[np.uint8], rows["deaths"].copy()),
             phi_unit=cast(NDArray[np.float32], rows["phi_unit"].copy()),
             phi_unit_next=cast(NDArray[np.float32], rows["phi_unit_next"].copy()),
+            bombs=cast(NDArray[np.uint8], rows["bombs"].copy()),
+            spot_unit=cast(NDArray[np.float32], rows["spot_unit"].copy()),
+            spot_unit_next=cast(NDArray[np.float32], rows["spot_unit_next"].copy()),
+            attacks=cast(NDArray[np.uint8], rows["attacks"].copy()),
+            hunt_unit=cast(NDArray[np.float32], rows["hunt_unit"].copy()),
+            hunt_unit_next=cast(NDArray[np.float32], rows["hunt_unit_next"].copy()),
             x_next=cast(NDArray[np.float32], rows["x_next"].copy()),
             mask_next=cast(NDArray[np.bool_], rows["mask_next"].copy()),
             done=cast(NDArray[np.bool_], rows["done"].copy()),
@@ -265,7 +395,7 @@ class ReplayBuffer:
     def snapshot(self) -> dict[str, Any]:
         """Physical ring order, filled portion only; no aliases into storage."""
         return {
-            "format_version": 2,
+            "format_version": FORMAT_VERSION,
             "capacity": self.capacity,
             "input_dim": self.input_dim,
             "size": self._size,
@@ -273,25 +403,56 @@ class ReplayBuffer:
             "rows": self._rows[: self._size].copy(),
         }
 
+    def _legacy_dtype(self, version: int) -> np.dtype[np.void]:
+        """The row layout of an older file: before the attack column (3),
+        before the bomb/spot columns as well (2), and before the n-step
+        ``k``/``components`` columns on top of that (1)."""
+        dropped: set[str] = {"hunt_unit", "hunt_unit_next"}
+        if version != 4:
+            dropped |= {"attacks"}
+        if version not in (3, 4):
+            dropped |= {"bombs", "spot_unit", "spot_unit_next"}
+        fields = [entry for entry in self._rows.dtype.descr if entry[0] not in dropped]
+        if version in (3, 4):
+            fields[-1] = ("components", "<f4", (3, 8 if version == 3 else 9))
+            return np.dtype(fields)
+        if version == 2:
+            fields[-1] = ("components", "<f4", (3, 5))
+            return np.dtype(fields)
+        return np.dtype(fields[:-2])
+
+    def _upgrade(
+        self, rows: NDArray[np.void], size: int, version: int
+    ) -> NDArray[np.void]:
+        """Read an older file into the current layout: no attack aid, for
+        versions 1 and 2 no bombs and no spot potential either, and for
+        version 1 a one-step sequence per row."""
+        legacy = self._legacy_dtype(version)
+        if rows.dtype != legacy:
+            raise ValueError("legacy replay schema mismatch")
+        upgraded = np.zeros(size, dtype=self._rows.dtype)
+        for name in legacy.names or ():
+            if name != "components":
+                upgraded[name] = rows[name]
+        if version in (2, 3, 4):
+            width = {2: 5, 3: 8, 4: 9}[version]
+            upgraded["components"][:, :, :width] = rows["components"]
+            return upgraded
+        upgraded["k"] = 1
+        for column, name in enumerate(
+            ("base", "crates", "deaths", "phi_unit", "phi_unit_next")
+        ):
+            upgraded["components"][:, 0, column] = rows[name]
+        return upgraded
+
     @classmethod
     def from_snapshot(cls, state: dict[str, Any]) -> "ReplayBuffer":
         result = cls(state["capacity"], state["input_dim"])
         size, write, rows = state["size"], state["write"], state["rows"]
-        version = state.get("format_version", 2)
-        if version == 1:
-            legacy = np.dtype(result._rows.dtype.descr[:-2])
-            if rows.dtype != legacy:
-                raise ValueError("legacy replay schema mismatch")
-            upgraded = np.zeros(size, dtype=result._rows.dtype)
-            for name in legacy.names or ():
-                upgraded[name] = rows[name]
-            upgraded["k"] = 1
-            for column, name in enumerate(
-                ("base", "crates", "deaths", "phi_unit", "phi_unit_next")
-            ):
-                upgraded["components"][:, 0, column] = rows[name]
-            rows = upgraded
-        elif version != 2:
+        version = state.get("format_version", FORMAT_VERSION)
+        if version in (1, 2, 3, 4):
+            rows = result._upgrade(rows, size, version)
+        elif version != FORMAT_VERSION:
             raise ValueError("unsupported replay format")
         _integer(size, "size", 0, result.capacity)
         _integer(write, "write", 0, result.capacity - 1)
@@ -302,36 +463,60 @@ class ReplayBuffer:
         if ((rows["k"] < 1) | (rows["k"] > 3)).any():
             raise ValueError("invalid sequence length")
         c = rows["components"]
-        if not np.isfinite(c).all() or ((c[:, :, 3:] < 0) | (c[:, :, 3:] > 1)).any():
+        potentials = c[:, :, [3, 4, 6, 7, 9, 10]]
+        if not np.isfinite(c).all() or ((potentials < 0) | (potentials > 1)).any():
             raise ValueError("invalid sequence components")
-        counts = c[:, :, 1:3]
+        counts = c[:, :, [1, 2, 5, 8]]
         if (
             (counts < 0).any()
             or (counts != np.floor(counts)).any()
             or (c[:, :, 1] > 255).any()
             or (c[:, :, 2] > 1).any()
+            or (c[:, :, 5] > 255).any()
+            or (c[:, :, 8] > 2).any()
         ):
             raise ValueError("invalid sequence event counts")
         for i in range(size):
             k = int(rows["k"][i])
-            if c[i, k:].any() or (rows["done"][i] and c[i, k - 1, 4] != 0):
+            terminal_tail = rows["done"][i] and any(
+                c[i, k - 1, column] != 0 for column in (4, 7, 10)
+            )
+            if c[i, k:].any() or terminal_tail:
                 raise ValueError("invalid sequence padding/terminal potential")
+            head = ("base", "crates", "deaths", "phi_unit")
             if (
-                any(
-                    c[i, 0, j] != rows[name][i]
-                    for j, name in enumerate(("base", "crates", "deaths", "phi_unit"))
-                )
+                any(c[i, 0, j] != rows[name][i] for j, name in enumerate(head))
+                or c[i, 0, 5] != rows["bombs"][i]
+                or c[i, 0, 8] != rows["attacks"][i]
+                or c[i, 0, 6] != rows["spot_unit"][i]
+                or c[i, 0, 9] != rows["hunt_unit"][i]
+                or c[i, k - 1, 10] != rows["hunt_unit_next"][i]
                 or c[i, k - 1, 4] != rows["phi_unit_next"][i]
+                or c[i, k - 1, 7] != rows["spot_unit_next"][i]
             ):
                 raise ValueError("inconsistent sequence components")
-            if not np.array_equal(c[i, : k - 1, 4], c[i, 1:k, 3]):
+            if any(
+                not np.array_equal(c[i, : k - 1, nxt], c[i, 1:k, cur])
+                for cur, nxt in ((3, 4), (6, 7), (9, 10))
+            ):
                 raise ValueError("discontinuous sequence potentials")
         for name in ("x", "x_next", "base", "phi_unit", "phi_unit_next"):
             if not np.isfinite(rows[name]).all():
                 raise ValueError("nonfinite replay data")
-        if (rows["a"] > 5).any() or (rows["deaths"] > 1).any():
-            raise ValueError("invalid replay action/death")
-        for name in ("phi_unit", "phi_unit_next"):
+        if (
+            (rows["a"] > 5).any()
+            or (rows["deaths"] > 1).any()
+            or (rows["attacks"] > 2).any()
+        ):
+            raise ValueError("invalid replay action/death/attack")
+        for name in (
+            "phi_unit",
+            "phi_unit_next",
+            "spot_unit",
+            "spot_unit_next",
+            "hunt_unit",
+            "hunt_unit_next",
+        ):
             if ((rows[name] < 0) | (rows[name] > 1)).any():
                 raise ValueError("invalid replay potential")
         terminal = rows["done"]
@@ -339,6 +524,8 @@ class ReplayBuffer:
             rows["mask_next"][terminal].any()
             or rows["x_next"][terminal].any()
             or rows["phi_unit_next"][terminal].any()
+            or rows["spot_unit_next"][terminal].any()
+            or rows["hunt_unit_next"][terminal].any()
         ):
             raise ValueError("invalid terminal replay successor")
         if not rows["mask_next"][~terminal].any(axis=1).all():

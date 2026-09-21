@@ -89,7 +89,7 @@ def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
     if self.config.policy == "random" or self.q_function is None:
         return cast(Action, self.rng.choice(extracted.allowed))
     index, symmetry = canonical(extracted.features, self.encoding)
-    x = self.encoder.encode(self.encoding.decode(index), extracted)
+    x = self.encoder.encode(self.encoding.decode(index), extracted, symmetry)
     allowed = [ACTIONS.index(to_canonical(a, symmetry)) for a in extracted.allowed]
     action = masked_greedy(self.q_function.values(x), allowed, self.rng)
     return cast(Action, from_canonical(ACTIONS[action], symmetry))

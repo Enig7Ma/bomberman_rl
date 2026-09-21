@@ -54,11 +54,11 @@ def save_replay(
     state = replay.snapshot()
     rows = state.pop("rows")
     meta = {
+        # ``state`` carries the row layout's own ``format_version``.
         **state,
         "run_id": run_id,
         "transitions": transitions,
         "schema_id": schema_id,
-        "format_version": 2,
         "n_step": n_step,
         "pending_count": pending_count,
         "exact_history": exact_history,
@@ -77,7 +77,7 @@ def load_replay(
     with np.load(path, allow_pickle=False) as data:
         meta = json.loads(str(data["meta"].item()))
         if (
-            meta["format_version"] not in (1, 2)
+            meta["format_version"] not in (1, 2, 3, 4, 5)
             or meta["schema_id"] != schema_id
             or meta["run_id"] != checkpoint["run_id"]
         ):

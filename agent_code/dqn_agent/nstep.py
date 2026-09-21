@@ -34,6 +34,8 @@ class NStep:
                 or t.stage != previous.stage
                 or not np.array_equal(previous.x_next, t.x)
                 or previous.phi_unit_next != t.phi_unit
+                or previous.spot_unit_next != t.spot_unit
+                or previous.hunt_unit_next != t.hunt_unit
             ):
                 raise ValueError("discontinuous sequence/episode")
         self.pending.append(t)
@@ -50,6 +52,8 @@ class NStep:
                     mask_next=last.mask_next.copy(),
                     done=last.done,
                     phi_unit_next=0.0 if last.done else last.phi_unit_next,
+                    spot_unit_next=0.0 if last.done else last.spot_unit_next,
+                    hunt_unit_next=0.0 if last.done else last.hunt_unit_next,
                     reward_steps=tuple(
                         (
                             s.base,
@@ -57,6 +61,12 @@ class NStep:
                             s.deaths,
                             s.phi_unit,
                             0.0 if s.done else s.phi_unit_next,
+                            s.bombs,
+                            s.spot_unit,
+                            0.0 if s.done else s.spot_unit_next,
+                            s.attacks,
+                            s.hunt_unit,
+                            0.0 if s.done else s.hunt_unit_next,
                         )
                         for s in sequence
                     ),
@@ -124,6 +134,12 @@ def convert_replay(source: ReplayBuffer) -> ReplayBuffer:
             int(row["stage"]),
             int(row["round_id"]),
             int(row["transition_id"]),
+            int(row["bombs"]),
+            float(row["spot_unit"]),
+            float(row["spot_unit_next"]),
+            int(row["attacks"]),
+            float(row["hunt_unit"]),
+            float(row["hunt_unit_next"]),
         )
         if previous is not None and (
             t.transition_id != previous.transition_id + 1

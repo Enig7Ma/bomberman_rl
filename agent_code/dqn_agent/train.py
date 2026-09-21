@@ -35,7 +35,7 @@ from numpy.typing import NDArray
 
 import events as e
 
-from .bookkeeping import Bookkeeper, Transition
+from .bookkeeping import Bookkeeper, Observed, Transition
 from .callbacks import AgentSelf
 from .config import REPO_ROOT, Config, metrics_path
 from .core.world_model import ACTIONS, Observation
@@ -49,6 +49,14 @@ from .probe import Probe, check_q
 from .replay import ReplayBuffer, ReplayTransition
 from .rewards import Rewards
 from .symmetry import Symmetry, from_canonical, to_canonical
+from .teacher import Teacher
+
+
+def _hunt_unit(rewards: Rewards, observed: Observed[NDArray[np.float32]]) -> float:
+    """``1 / (1 + d)`` to the nearest opponent, once nothing is collectable."""
+    if not observed.stripped:
+        return 0.0
+    return rewards.potential(None, None, observed.opponent_distance)
 
 
 class Trainer:
@@ -70,6 +78,8 @@ class Trainer:
         self.parent_checkpoint: str | None = None
         self.last_record: dict[str, Any] = {}
         self.last_save: dict[str, float] = {}
+        self.teacher = Teacher(self.config.seed)
+        self.teacher_steps = 0
         self.probe: Probe | None = None
         if self.config.probe_path:
             path = Path(self.config.probe_path).expanduser()
@@ -120,6 +130,16 @@ class Trainer:
         )
         return action, explored
 
+    def _teach(self, obs: Observation, symmetry: Symmetry) -> int | None:
+        """The teacher's action in the canonical frame, or None if this step is
+        not a teacher step. Drawn from the same RNG stream as epsilon, so the
+        schedule stays reproducible."""
+        share = self.config.teacher_share
+        if share <= 0.0 or self.learner.action_rng.random() >= share:
+            return None
+        self.teacher_steps += 1
+        return ACTIONS.index(to_canonical(self.teacher.act(obs), symmetry))
+
     def select(
         self, obs: Observation, extracted: Extracted, index: int, symmetry: Symmetry
     ) -> str:
@@ -127,14 +147,29 @@ class Trainer:
             self.bookkeeper.begin_round(obs.round)
             self._reset_round()
             self.opponents = [other.name for other in obs.others]
-        x = self.agent.encoder.encode(self.agent.encoding.decode(index), extracted)
+        x = self.agent.encoder.encode(
+            self.agent.encoding.decode(index), extracted, symmetry
+        )
         allowed = tuple(
             ACTIONS.index(to_canonical(a, symmetry)) for a in extracted.allowed
         )
         self.bookkeeper.observe(
-            obs.round, obs.step, x, allowed, extracted.coin_distance
+            obs.round,
+            obs.step,
+            x,
+            allowed,
+            extracted.coin_distance,
+            extracted.bomb_hits,
+            extracted.crate_distance,
+            extracted.features.attack,
+            extracted.opponent_distance,
+            extracted.coins_visible == 0 and extracted.crates_left == 0,
         )
-        action, explored = self.choose(x, allowed)
+        taught = self._teach(obs, symmetry)
+        if taught is not None and taught in allowed:
+            action, explored = taught, True
+        else:
+            action, explored = self.choose(x, allowed)
         played = from_canonical(ACTIONS[action], symmetry)
         self.bookkeeper.chose(action, played)
         self.steps += 1
@@ -150,12 +185,31 @@ class Trainer:
             self.config.c_coin,
             self.config.crate_aid,
             self.config.death_aid,
+            self.config.bomb_aid,
+            self.config.spot_potential,
+            self.config.attack_aid,
+            self.config.hunt_potential,
         )
         unit = Rewards(self.config.gamma, coin_potential=1)
+        spot = Rewards(self.config.gamma, spot_potential=1)
+        hunt = Rewards(self.config.gamma, hunt_potential=1)
         observed, nxt = transition.observed, transition.next_observed
         base = rewards.base(events)
+        # The engine confirms the drop; a bomb the engine refused pays nothing.
+        dropped = e.BOMB_DROPPED in events
+        bombs = observed.bomb_hits if dropped else 0
+        attacks = observed.attack if dropped else 0
         phi = unit.potential(observed.coin_distance)
         phi_next = 0.0 if nxt is None else unit.potential(nxt.coin_distance)
+        spot_unit = spot.potential(None, observed.crate_distance)
+        spot_next = 0.0 if nxt is None else spot.potential(None, nxt.crate_distance)
+        # Zero while anything is still collectable: the hunt potential exists
+        # for the stripped board, where every other term is zero anyway, and an
+        # always-on version pulls the agent off coins and into crowds. Both
+        # halves are read from their own observation, so the term stays a
+        # potential of the state.
+        hunt_unit = _hunt_unit(hunt, observed)
+        hunt_next = 0.0 if nxt is None else _hunt_unit(hunt, nxt)
         mask = np.zeros(6, dtype=bool)
         if nxt is not None:
             mask[list(nxt.allowed)] = True
@@ -174,6 +228,12 @@ class Trainer:
                 self.config.stage,
                 self.rounds_trained + 1,
                 self.transitions,
+                bombs,
+                spot_unit,
+                spot_next,
+                attacks,
+                hunt_unit,
+                hunt_next,
             )
         )
         for item in ready:
@@ -182,7 +242,9 @@ class Trainer:
         self.shaped_return += (
             base
             + rewards.aids(events)
+            + rewards.bomb(bombs, attacks)
             + self.config.c_coin * (self.config.gamma * phi_next - phi)
+            + self.config.spot_potential * (self.config.gamma * spot_next - spot_unit)
         )
         self.transitions += 1
         self.stage_position += 1
@@ -221,6 +283,7 @@ class Trainer:
             "updates_this_round": len(stats),
             "buffer_fill": len(self.replay),
             "steps": self.steps,
+            "teacher_steps": self.teacher_steps,
             "epsilon": self.learner.epsilon(
                 self.stage_position, self.config.stage_transitions
             ),
@@ -281,6 +344,11 @@ class Trainer:
             "c_coin",
             "crate_aid",
             "death_aid",
+            "bomb_aid",
+            "spot_potential",
+            "attack_aid",
+            "hunt_potential",
+            "teacher_share",
         }
         old, new = asdict(self.config), asdict(config)
         if any(old[key] != new[key] for key in old.keys() - mutable):
@@ -353,9 +421,14 @@ class Trainer:
 
     def _restore(self, path: Path) -> None:
         state = load_checkpoint(path)
-        if state["schema_id"] != self.agent.encoder.schema_id or state["config"] | {
-            "n_step": state["config"].get("n_step", 1)
-        } != asdict(self.config):
+        # A checkpoint written before a coefficient existed is still exactly
+        # this run: fields it does not mention take their default, which is the
+        # value the run was trained with. Everything it *does* mention must
+        # match, so a real configuration change is still refused.
+        stored = {**asdict(Config()), **state["config"]}
+        if state["schema_id"] != self.agent.encoder.schema_id or stored != asdict(
+            self.config
+        ):
             raise ValueError(
                 "checkpoint schema/config mismatch; use q_net alone for a new run"
             )

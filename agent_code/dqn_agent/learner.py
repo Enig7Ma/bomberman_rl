@@ -157,6 +157,10 @@ class Learner:
             c_coin=self.config.c_coin,
             crate_aid=self.config.crate_aid,
             death_aid=self.config.death_aid,
+            bomb_aid=self.config.bomb_aid,
+            spot_potential=self.config.spot_potential,
+            attack_aid=self.config.attack_aid,
+            hunt_potential=self.config.hunt_potential,
         )
 
     def _validate(self, batch: ReplayBatch) -> None:

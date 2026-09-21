@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 
 import events as e
 from agent_code.dqn_agent.config import Config
@@ -15,16 +16,18 @@ from agent_code.dqn_agent.replay import ReplayBuffer, ReplayTransition
 from agent_code.dqn_agent.rewards import Rewards
 
 
-def step(i: int, *, done: bool = False, round_id: int = 1) -> ReplayTransition:
+def step(
+    i: int, *, done: bool = False, round_id: int = 1, dim: int = 32
+) -> ReplayTransition:
     return ReplayTransition(
-        np.full(32, i, dtype=np.float32),
+        np.full(dim, i, dtype=np.float32),
         2,
         float(i + 1),
         i % 3,
         int(done),
         1 / (i + 1),
         1 / (i + 2),
-        np.full(32, i + 1, dtype=np.float32),
+        np.full(dim, i + 1, dtype=np.float32),
         np.array([True, False, True, False, False, False]),
         done,
         0,
@@ -90,7 +93,7 @@ def test_terminal_tails_match_discounted_original_rewards(
 
 def test_three_step_double_dqn_target_and_canonical_successor() -> None:
     torch = pytest.importorskip("torch")
-    from agent_code.dqn_agent.encoder import OneHotE3
+    from agent_code.dqn_agent.encoder import ENCODERS
     from agent_code.dqn_agent.learner import Learner
 
     queue = NStep(3, 32)
@@ -107,7 +110,10 @@ def test_three_step_double_dqn_target_and_canonical_successor() -> None:
     np.testing.assert_array_equal(ready[0].mask_next, last.mask_next)
     replay = ReplayBuffer(1, 32)
     replay.push(ready[0])
-    learner = Learner(OneHotE3(), Config(gamma=0.5, n_step=3, c_coin=0, seed=0))
+    learner = Learner(
+        ENCODERS["onehot_e3"],
+        Config(encoder="onehot_e3", gamma=0.5, n_step=3, c_coin=0, seed=0),
+    )
     with torch.no_grad():
         for net in (learner.online, learner.target):
             for p in net.parameters():
@@ -185,15 +191,17 @@ def test_trainer_checkpoint_preserves_pending_and_real_counter(
     configure(monkeypatch, tmp_path, n_step=3)
     with quiet_logging():
         subject = trainer(create_training_world(("dqn_agent",), "empty", 0))
+        # The queue belongs to the real agent, so its rows are the real width.
+        dim = subject.agent.encoder.dim
         for i in range(2):
-            subject.nstep.push(step(i))
+            subject.nstep.push(step(i, dim=dim))
         subject.transitions = subject.stage_position = 2
         subject.save(full=True)
         reset_framework_logging()
         restored = trainer(create_training_world(("dqn_agent",), "empty", 0))
         assert restored.transitions == 2 and len(restored.replay) == 0
         assert restored.nstep.state() == subject.nstep.state()
-        for ready in restored.nstep.push(step(2, done=True)):
+        for ready in restored.nstep.push(step(2, done=True, dim=dim)):
             restored.replay.push(ready)
         assert len(restored.replay) == 3 and not restored.nstep.pending
         reset_framework_logging()
@@ -226,31 +234,59 @@ def test_conversion_preserves_wrapped_order_and_rejects_missing_data() -> None:
         convert_replay(incomplete)
 
 
-def test_legacy_replay_explicit_upgrade_and_horizon_guard(tmp_path: Path) -> None:
+def _older_rows(rows: NDArray[np.void], version: int) -> NDArray[np.void]:
+    """The same row in the layout a file of ``version`` stored: version 4 had
+    no hunt columns, version 3 no attack column either, version 2 no bomb/spot
+    columns on top of that, and version 1 no ``k``/``components`` at all."""
+    dropped = {"hunt_unit", "hunt_unit_next"}
+    if version != 4:
+        dropped |= {"attacks"}
+    if version not in (3, 4):
+        dropped |= {"bombs", "spot_unit", "spot_unit_next"}
+    without = [entry for entry in rows.dtype.descr if entry[0] not in dropped]
+    width = {1: 5, 2: 5, 3: 8, 4: 9}[version]
+    if version in (2, 3, 4):
+        without[-1] = ("components", "<f4", (3, width))
+    else:
+        without = without[:-2]
+    older = np.zeros(len(rows), dtype=np.dtype(without))
+    for name in older.dtype.names or ():
+        older[name] = (
+            rows["components"][:, :, :width] if name == "components" else rows[name]
+        )
+    return older
+
+
+@pytest.mark.parametrize("version", [1, 2, 3, 4])
+def test_legacy_replay_explicit_upgrade_and_horizon_guard(
+    tmp_path: Path, version: int
+) -> None:
     pytest.importorskip("torch")
     from agent_code.dqn_agent.persistence import load_replay, save_replay
 
     replay = ReplayBuffer(4, 32)
     replay.push(step(0, done=True))
     state = replay.snapshot()
-    names = list(state["rows"].dtype.names[:-2])
-    legacy = np.empty(1, dtype=np.dtype(state["rows"].dtype.descr[:-2]))
-    for name in names:
-        legacy[name] = state["rows"][name]
     meta = {k: v for k, v in state.items() if k != "rows"}
     meta.update(
-        format_version=1,
+        format_version=version,
         run_id="test",
         transitions=1,
         schema_id="test",
         exact_history=True,
     )
     path = tmp_path / "replay.npz"
-    np.savez(path, rows=legacy, meta=np.array(json.dumps(meta)))
+    np.savez(
+        path,
+        rows=_older_rows(state["rows"], version),
+        meta=np.array(json.dumps(meta)),
+    )
     checkpoint: dict[str, Any] = {"run_id": "test", "transitions": 1, "config": {}}
     restored, degraded = load_replay(path, checkpoint, "test")
     assert not degraded
+    # An upgraded row is the current row with no bomb aid and no spot potential.
     np.testing.assert_array_equal(restored.snapshot()["rows"], state["rows"])
+    assert restored.snapshot()["format_version"] == 5
     save_replay(path, restored, run_id="test", transitions=1, schema_id="test")
     checkpoint["config"] = {"n_step": 3}
     with pytest.raises(ValueError, match="horizon"):

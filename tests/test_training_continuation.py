@@ -66,4 +66,3 @@ def test_full_fork_and_resume_preserve_state(tmp_path: Path, lr: float) -> None:
     assert_equal(stored, load_checkpoint(parent / "checkpoint.pt"))
     with pytest.raises(FileExistsError):
         fork_curriculum(parent, child, following, 11)
-

@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from agent_code.dqn_agent.config import (
@@ -152,12 +153,23 @@ def test_every_shared_mask_is_supported(mask: str) -> None:
 
 
 def test_encoder_defaults_and_environment_override() -> None:
-    assert Config().encoder == "onehot_e3"
+    # The default must be whatever the shipped weights were trained with, since
+    # the organisers run the agent with no environment variable at all; the
+    # one-hot encoder stays selectable by name for the table comparison.
+    default = ENCODERS[Config().encoder]
+    assert default.dim > 32
+    model = Path(__file__).resolve().parent.parent / "agent_code/dqn_agent/model"
+    weights = model / "q_net.npz"
+    if weights.exists():
+        with np.load(weights, allow_pickle=False) as archive:
+            header = json.loads(str(archive["meta"].item()))["header"]
+        assert header["encoder"] == default.name
+        assert header["schema_id"] == default.schema_id
     parsed = Config.from_env({ENV_VAR: '{"encoder": "onehot_e3"}'})
     assert ENCODERS[parsed.encoder].dim == 32
 
 
-@pytest.mark.parametrize("value", ["missing", "dense_v1", "", None, 1, [], {}])
+@pytest.mark.parametrize("value", ["missing", "onehot_e4", "", None, 1, [], {}])
 def test_unknown_or_invalid_encoder_is_rejected(value: object) -> None:
     with pytest.raises(ValueError, match="encoder"):
         Config.from_env({ENV_VAR: json.dumps({"encoder": value})})
