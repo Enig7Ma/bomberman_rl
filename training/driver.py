@@ -230,6 +230,12 @@ def start_or_resume(
         source_rounds, _ = spec.model_info(init_from, curriculum.params)
         init_rounds = source_rounds if curriculum.agent == LEARNER else 0
         copy_atomic(init_from, run_dir / spec.model_file)
+        if curriculum.agent == LEARNER and curriculum.stages[0].transitions is not None:
+            copied = QTable.load(
+                run_dir / spec.model_file, ENCODINGS[curriculum.agent_config().encoding]
+            )
+            copied.meta.pop("transition_driver", None)
+            copied.save(run_dir / spec.model_file)
     document = {
         "run_seed": run_seed,
         "git_commit": _git_commit(),
@@ -276,6 +282,10 @@ def train_run(
         from training.dqn import train_dqn
 
         return train_dqn(curriculum, run_dir, run_seed, progress=progress)
+    if curriculum.stages[0].transitions is not None:
+        from training.tabular_steps import train_tabular_steps
+
+        return train_tabular_steps(curriculum, run_dir, run_seed)
     model = run_dir / MODEL_FILE
     encoding = curriculum.agent_config().encoding
     chunks = plan_chunks(curriculum, run_seed)

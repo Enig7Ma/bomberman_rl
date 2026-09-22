@@ -1,5 +1,31 @@
 # Practical candidates, D8 gaps and D12 preparation
 
+**Latest, 2026-09-21:** the three authorized preparation steps are complete:
+25-map blended-table validation (score5.84), candidate/protocol freeze, and full
+Docker build with successful Linux checks for both packages. See
+[report](d12_freeze_and_linux.md), [frozen protocol](d12_frozen_protocol.json)
+and [runtime lock](d12_runtime_lock.json). No held-out games, final winner,
+submission or Git publication yet. The earlier pending statements below record
+the state before this work and do not supersede this update.
+
+**D12 packaging preparation, 2026-09-21:** [manifest](d12_manifest.json) and
+[checks/proposed final protocol](d12_preparation.md) now cover nine model
+identities and isolated ZIP checks for baseline DQN and Maria's blended table.
+Full D12, Docker build, blended-table strength validation and held-out evaluation
+remain pending. The user confirms no separate tabular Q12 document is available.
+
+**2026-09-21 update:** the user subsequently authorized and completed reduced D8
+(both learners, three fresh seeds, navigation50k + crates300k). The transition
+driver prerequisite described below is now implemented. See
+[conclusions](d8_reduced_summary.md), [protocol](d8_reduced_protocol.md) and
+[results](d8_reduced_results.md). The dated audit below remains historical;
+its "not executed" statements refer to2026-09-19. D6/D7 remain failed, full
+D8 all-seat head-to-head/combat curriculum is still omitted, and D12 is pending.
+The study did not replace candidate weights. A subsequent upstream integration
+brought Maria's blended table; see the summary's publication note. It has not
+been evaluated here and does not inherit the old table's validation score.
+The new matched study is separate from the old models' practical validation.
+
 2026-09-19. Branch `feature/ivan-dqn`; initial tree clean, HEAD
 `af6b6f3d0cae2d9002639c9410dbdcce6bf562c9`. No training in this task.
 Plan read from `C:/Users/ivans/Downloads/Telegram Desktop/dqn.md`, D8/D12.

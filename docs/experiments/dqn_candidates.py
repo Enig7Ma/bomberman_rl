@@ -70,7 +70,15 @@ def rule_streams(seed: int, reference: bool) -> Generator[dict[int, int]]:
         yield seats
 
 
-def run(out: Path) -> None:
+def run(
+    out: Path,
+    agents_to_check: tuple[str, ...] = (
+        "dqn_agent",
+        "tabular_q_agent",
+        "rule_based_agent",
+    ),
+    reference_results: Path | None = None,
+) -> None:
     out = out.resolve()
     if out.exists():
         raise FileExistsError("fresh directory required; do not repeat existing games")
@@ -87,7 +95,7 @@ def run(out: Path) -> None:
             "scenario": "classic",
             "seat": 0,
             "max_steps": 400,
-            "games": 75,
+            "games": 25 * len(agents_to_check),
             "jobs": 1,
             "train": False,
             "candidate_rng": 500,
@@ -101,9 +109,16 @@ def run(out: Path) -> None:
         },
     )
     boards: dict[int, str] = {}
+    if reference_results is not None:
+        previous = json.loads(reference_results.read_text())
+        boards = {
+            row["seed"]: row["initial_board_sha256"]
+            for row in previous["rows"]["rule_based_agent"]
+        }
+        assert set(boards) == set(range(500, 525))
     results: dict[str, list[dict[str, Any]]] = {}
     started = perf_counter()
-    for name in ("dqn_agent", "tabular_q_agent", "rule_based_agent"):
+    for name in agents_to_check:
         rows: list[dict[str, Any]] = []
         reference = name == "rule_based_agent"
         prefix = "DQN_AGENT" if name == "dqn_agent" else "TABULAR_Q_AGENT"
@@ -214,4 +229,14 @@ def run(out: Path) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
-    run(parser.parse_args().out)
+    parser.add_argument(
+        "--agent", choices=("dqn_agent", "tabular_q_agent", "rule_based_agent")
+    )
+    parser.add_argument("--reference-results", type=Path)
+    args = parser.parse_args()
+    selected = (
+        (args.agent,)
+        if args.agent
+        else ("dqn_agent", "tabular_q_agent", "rule_based_agent")
+    )
+    run(args.out, selected, args.reference_results)

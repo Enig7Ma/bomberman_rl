@@ -25,7 +25,13 @@ from tournament.runner import run_schedule
 from tournament.schedule import CANDIDATE_ARM, PRESETS, build_schedule, seeds
 from tournament.stats import ArmSummary, summarise_arm
 from tournament.storage import read_rounds, write_rounds
-from training.driver import METRICS_FILE, environment, load_run, snapshots
+from training.driver import (
+    METRICS_FILE,
+    environment,
+    load_run,
+    read_chunk_records,
+    snapshots,
+)
 from training.spec import SPECS
 
 EVAL_DIR = "eval"
@@ -54,6 +60,7 @@ def evaluate_run(
     curriculum, _ = load_run(run_dir)
     spec = SPECS[curriculum.agent]
     dqn = curriculum.agent == "dqn_agent"
+    by_transitions = curriculum.stages[0].transitions is not None
     metrics_file = run_dir / METRICS_FILE
     records: list[dict[str, Any]] = (
         [
@@ -64,6 +71,12 @@ def evaluate_run(
         if metrics_file.exists()
         else []
     )
+    if by_transitions and not dqn:
+        chunks = read_chunk_records(run_dir)
+        total = chunks[0].total_transitions - chunks[0].transitions if chunks else 0
+        for record in records:
+            total += int(record["steps"])
+            record["transitions"] = total
 
     curves: dict[str, list[CurvePoint]] = {}
     for evaluation in curriculum.evaluations:
@@ -76,7 +89,7 @@ def evaluate_run(
         points: list[CurvePoint] = []
         for position, snapshot in snapshots(run_dir):
             rounds_trained, visited = spec.model_info(snapshot, curriculum.params)
-            unit = "transition" if dqn else "round"
+            unit = "transition" if by_transitions else "round"
             out = (
                 run_dir / EVAL_DIR / f"{evaluation.preset}_{unit}_{position:06d}.jsonl"
             )
@@ -103,8 +116,12 @@ def evaluate_run(
                 record
                 for record in records
                 if position
-                - (curriculum.eval_every_transitions if dqn else curriculum.eval_every)
-                < record["transitions" if dqn else "rounds_trained"]
+                - (
+                    curriculum.eval_every_transitions
+                    if by_transitions
+                    else curriculum.eval_every
+                )
+                < record["transitions" if by_transitions else "rounds_trained"]
                 <= position
             ]
             points.append(
@@ -112,7 +129,7 @@ def evaluate_run(
                     rounds_trained=rounds_trained,
                     summary=summarise_arm(results, CANDIDATE_ARM),
                     visited_states=visited,
-                    transitions=position if dqn else None,
+                    transitions=position if by_transitions else None,
                     unseen_per_round=_mean(
                         [float(r.get("unseen_decisions", math.nan)) for r in window]
                     ),
