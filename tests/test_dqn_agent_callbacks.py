@@ -1,4 +1,4 @@
-"""D0 safe-random behavior on diagnostic boards and the real engine."""
+"""Safe-random fallback behavior on diagnostic boards and the real engine."""
 
 import inspect
 import json
@@ -15,9 +15,9 @@ from numpy.typing import NDArray
 
 import agents
 from agent_code.dqn_agent import callbacks, config
-from agent_code.dqn_agent.config import ENV_VAR, MODEL_ENV_VAR
+from agent_code.dqn_agent.config import ENV_VAR, MODEL_ENV_VAR, Config
 from agent_code.dqn_agent.core.world_model import ACTIONS, Observation
-from agent_code.dqn_agent.encoder import OneHotE3
+from agent_code.dqn_agent.encoder import ENCODERS
 from agent_code.dqn_agent.network import QNetwork
 from agent_code.dqn_agent.symmetry import IDENTITY, canonical, to_canonical
 from tests.bfs_boards import arena, game_state, parse_board
@@ -145,7 +145,7 @@ def test_loading_rules(
     if fault == "corrupt":
         path.write_bytes(b"broken archive")
     elif fault == "schema":
-        net = QNetwork.random(OneHotE3(), 0)
+        net = QNetwork.random(ENCODERS[Config().encoder], 0)
         net.header["schema_id"] = "old schema"
         net.save(path)
     if explicit:
@@ -177,7 +177,7 @@ def test_missing_training_model_uses_init_seed(
     )
     callbacks.setup(agent)
     assert isinstance(agent.q_function, QNetwork)
-    expected = QNetwork.random(OneHotE3(), 14)
+    expected = QNetwork.random(ENCODERS[Config().encoder], 14)
     for name, array in expected.arrays.items():
         np.testing.assert_array_equal(agent.q_function.arrays[name], array)
     assert not agent.model_file.exists()
@@ -201,7 +201,7 @@ def test_loaded_network_uses_canonical_mask_and_maps_back(
     index, symmetry = canonical(extracted.features, probe.encoding)
     assert symmetry != IDENTITY
     assert to_canonical("RIGHT", symmetry) != "RIGHT"
-    net = QNetwork.random(OneHotE3(), 0)
+    net = QNetwork.random(ENCODERS[Config().encoder], 0)
     for array in net.arrays.values():
         array.fill(0)
     net.arrays["b2"][ACTIONS.index(to_canonical(wanted, symmetry))] = 5
@@ -218,7 +218,8 @@ def test_loaded_network_uses_canonical_mask_and_maps_back(
     class Probe:
         def values(self, x: NDArray[np.float32]) -> NDArray[np.float32]:
             np.testing.assert_array_equal(
-                x, agent.encoder.encode(agent.encoding.decode(index))
+                x,
+                agent.encoder.encode(agent.encoding.decode(index), extracted, symmetry),
             )
             return net.values(x)
 
@@ -231,7 +232,7 @@ def test_loaded_network_uses_canonical_mask_and_maps_back(
 def test_loaded_ties_use_private_agent_rng(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    net = QNetwork.random(OneHotE3(), 0)
+    net = QNetwork.random(ENCODERS[Config().encoder], 0)
     for array in net.arrays.values():
         array.fill(0)
     net.save(tmp_path / "default.npz")

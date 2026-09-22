@@ -3,13 +3,14 @@
 ::
 
     # three independent runs of one curriculum, in parallel
-    uv run python -m training run --curriculum dev/experiments/tabular/coins.json \\
-        --out results/tabular_q/coins --runs 3 --jobs 3
+    uv run python -m training run --curriculum dev/experiments/dqn/dqn_d5/smoke.json \\
+        --out results/dqn/smoke --runs 3 --jobs 3
 
     # learning curves for every run under a directory (or for one run)
-    uv run python -m training evaluate results/tabular_q/coins --jobs 4
+    uv run python -m training evaluate results/dqn/smoke --jobs 4
 
-    # average each run's 3 newest snapshots into averaged/last3_round_<N>.npz
+    # average each tabular run's 3 newest snapshots into
+    # averaged/last3_round_<N>.npz
     uv run python -m training average results/tabular_q/coins --last 3
 
 Run from the repository root. Running ``run`` again on the same ``--out``

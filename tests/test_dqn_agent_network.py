@@ -1,4 +1,4 @@
-"""D2 numeric inference, strict weight files and atomic replacement."""
+"""NumPy inference, strict weight files and atomic replacement."""
 
 import json
 import random

@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from agent_code.dqn_agent.encoder import OneHotE3
+from agent_code.dqn_agent.config import Config
+from agent_code.dqn_agent.encoder import ENCODERS
 from agent_code.dqn_agent.network import QNetwork
 
 REPO = Path(__file__).resolve().parent.parent
@@ -46,9 +47,13 @@ def test_agent_works_without_other_agents_or_training(
     tmp_path: Path, loaded: bool
 ) -> None:
     # Copy only the submission and the framework modules it is allowed to need.
+    # ``model`` is left out so the two cases are "no weights at all" and
+    # "weights named explicitly", independently of what the repository ships.
     destination = tmp_path / "agent_code" / "dqn_agent"
     shutil.copytree(
-        DQN, destination, ignore=shutil.ignore_patterns("__pycache__", "logs")
+        DQN,
+        destination,
+        ignore=shutil.ignore_patterns("__pycache__", "logs", "model"),
     )
     for name in ("settings.py", "fallbacks.py", "events.py"):
         shutil.copyfile(REPO / name, tmp_path / name)
@@ -73,7 +78,7 @@ print(json.dumps({'action': action, 'loaded': agent.q_function is not None,
     env["PYTHONPATH"] = str(tmp_path)
     path = tmp_path / "random.npz"
     if loaded:
-        QNetwork.random(OneHotE3(), 0).save(path)
+        QNetwork.random(ENCODERS[Config().encoder], 0).save(path)
         env["DQN_AGENT_MODEL"] = str(path)
     before = (path.read_bytes(), path.stat().st_mtime_ns) if loaded else None
     finished = subprocess.run(

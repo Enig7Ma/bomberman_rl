@@ -1,9 +1,0 @@
-{
-  "schema_id": "3963eb07bf146d11",
-  "sha256": "008253a6aa52af1e006b0d3858591f4a0cc94c03729073e659fb7ce010e3189f",
-  "fingerprint": "97bc7a533d32d6add7c4b464bc0b5f54fdd1ef7ecc05bf167facd051c4bfa24f",
-  "original_sha256": "8cbef87bc7b7c9853fe1d6872756c1e31953ef4180c4fc71c94aa834a5ad05b5",
-  "rounds": 100,
-  "sampling_seed": 909,
-  "sampling": "250 per case and focus agent, without replacement; repeated encodings retained"
-}

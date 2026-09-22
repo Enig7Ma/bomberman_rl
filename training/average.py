@@ -1,11 +1,11 @@
 """Averaging a run's last snapshots into one table.
 
-Found in Q7 (``dev/experiments/tabular.md``): greedy play from a single
-snapshot flips between productive and collapsed tables, because in common
-states the action values differ by less than the update noise. The mean of the
-last few snapshots keeps each action's level and averages the noise away, like
-Polyak averaging of network weights. It is a post-training step: training
-itself continues from the live table, never from an average.
+Greedy play from a single snapshot flips between productive and collapsed
+tables, because in common states the action values differ by less than the
+update noise. The mean of the last few snapshots keeps each action's level and
+averages the noise away, like Polyak averaging of network weights. It is a
+post-training step: training itself continues from the live table, never from
+an average.
 
 The averaged table takes its visit counts and metadata from the newest
 snapshot, adds ``meta["averaged_from"]``, and is written to

@@ -1,6 +1,6 @@
 """Q-values and visit counts per canonical state, and their file format.
 
-Plan ``dev/tabiular_q-learning.md`` §5.5. Rows are the encoding's state
+Rows are the encoding's state
 indices (only canonical ones are ever touched, see ``symmetry``); columns are
 ``core.world_model.ACTIONS``. Q-values start at 0.
 

@@ -1,7 +1,7 @@
 """Frozen copies of the learner as training opponents.
 
 Self-play against the table being trained adds non-stationarity before it is
-useful (plan §4.4), so the opponent is a *frozen* snapshot instead: a copy of
+useful, so the opponent is a *frozen* snapshot instead: a copy of
 ``agent_code/tabular_q_agent`` under ``agent_code/tabular_frozen_<id>/`` whose
 default table is the snapshot. Two things make the copy independent of the
 learner:

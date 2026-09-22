@@ -1,4 +1,4 @@
-"""Running a curriculum (plan ``dev/tabiular_q-learning.md`` step Q5).
+"""Running a curriculum: chunks, checkpoints, snapshots, seeds and resumption.
 
 A run trains one Q-table through the stages of a ``Curriculum``:
 

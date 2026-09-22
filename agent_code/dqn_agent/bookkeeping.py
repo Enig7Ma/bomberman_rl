@@ -33,6 +33,17 @@ class Observed(Generic[S]):  # noqa: UP046
     coin_distance: int | None
     bomb_hits: int = 0
     crate_distance: int | None = None
+    # The step's attack category (0 none, 1 pressure, 2 trap): what a bomb
+    # dropped here would do to an opponent, for the ``attack_aid`` training aid.
+    attack: int = 0
+    # Walking distance to the nearest opponent, for the ``hunt_potential``
+    # shaping term; None when none is reachable.
+    opponent_distance: int | None = None
+    # Nothing left on the board to collect: no visible coin and no crate. The
+    # hunt potential is defined to be zero until this is true, so that chasing
+    # opponents never competes with collecting, and it is a property of the
+    # state like the rest of the potential.
+    stripped: bool = False
 
 
 @dataclass
@@ -89,6 +100,9 @@ class Bookkeeper(Generic[S]):  # noqa: UP046
         coin_distance: int | None,
         bomb_hits: int = 0,
         crate_distance: int | None = None,
+        attack: int = 0,
+        opponent_distance: int | None = None,
+        stripped: bool = False,
     ) -> None:
         if round_number != self.round:
             raise BookkeepingError(
@@ -102,6 +116,9 @@ class Bookkeeper(Generic[S]):  # noqa: UP046
             coin_distance,
             bomb_hits,
             crate_distance,
+            attack,
+            opponent_distance,
+            stripped,
         )
         pending = self.pending
         if pending is not None:

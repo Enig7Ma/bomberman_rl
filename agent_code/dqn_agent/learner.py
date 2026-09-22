@@ -82,7 +82,7 @@ class QNet(nn.Module):
 
 
 def export_numpy(net: QNet) -> dict[str, NDArray[np.float32]]:
-    """Independent weights in D2 layout; no optimizer/checkpoint state."""
+    """Independent weights in the inference layout; no optimizer/checkpoint state."""
     return {
         name: cast(NDArray[np.float32], parameter.detach().cpu().numpy().copy())
         for name, parameter in net.named_parameters()
@@ -157,6 +157,10 @@ class Learner:
             c_coin=self.config.c_coin,
             crate_aid=self.config.crate_aid,
             death_aid=self.config.death_aid,
+            bomb_aid=self.config.bomb_aid,
+            spot_potential=self.config.spot_potential,
+            attack_aid=self.config.attack_aid,
+            hunt_potential=self.config.hunt_potential,
         )
 
     def _validate(self, batch: ReplayBatch) -> None:
@@ -237,14 +241,14 @@ class Learner:
         )
 
     def export(self) -> QNetwork:
-        """D2-compatible snapshot; caller supplies stage/transition metadata later."""
+        """Inference snapshot; the caller supplies stage/transition metadata later."""
         return QNetwork(
             self.encoder,
             export_numpy(self.online),
             {
                 "config": asdict(self.config),
                 "updates": self.updates,
-                "stage": "D3-toy",
+                "stage": "exported",
             },
         )
 

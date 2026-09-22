@@ -61,7 +61,19 @@ DQN_DRIVER_PARAMS = {
     "epsilon_end",
     "epsilon_fraction",
 }
-DQN_STAGE_PARAMS = {"lr", "gamma", "c_coin", "crate_aid", "death_aid", "grad_clip"}
+DQN_STAGE_PARAMS = {
+    "lr",
+    "gamma",
+    "c_coin",
+    "crate_aid",
+    "death_aid",
+    "bomb_aid",
+    "spot_potential",
+    "attack_aid",
+    "hunt_potential",
+    "teacher_share",
+    "grad_clip",
+}
 
 
 class CurriculumError(ValueError):

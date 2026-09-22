@@ -1,7 +1,7 @@
 """Categorical features of an observation, and their encoding as a table index.
 
-Plan: ``dev/tabiular_q-learning.md`` §5.3. Every feature is a small integer
-computed from the observation alone -- no hidden coins, no bomb owners:
+Every feature is a small integer computed from the observation alone -- no
+hidden coins, no bomb owners:
 
 - ``mask``: bit ``i`` set when ``ACTIONS[i]`` is allowed by the safety mask.
 - ``coin_dir``: first step towards the nearest reachable visible coin;
@@ -23,11 +23,11 @@ Other agents do not block these walks, as in ``bfs_agent``'s planning: they
 will have moved by the time we arrive, and the mask already vets the first
 step. When several first steps are equally short, one is picked with the
 agent's private RNG, never by neighbour order, so the features carry no
-orientation bias -- the board symmetries of plan §5.4 rely on that.
+orientation bias -- the board symmetries in ``symmetry`` rely on that.
 
-All three direction fields have a ``HERE`` value, which the plan's table gave
-only ``crate_dir``: without it, "in position" and "no target" coincide for
-``opp_dir``, and a coin underfoot could not be encoded at all.
+All three direction fields have a ``HERE`` value, not only ``crate_dir``:
+without it, "in position" and "no target" would coincide for ``opp_dir``, and
+a coin underfoot could not be encoded at all.
 """
 
 import hashlib
@@ -40,8 +40,13 @@ from typing import Final, Literal
 
 from .core.attack import opponent_escapes
 from .core.params import Params
-from .core.planning import DistanceCache, bomb_spots
-from .core.safety import Board, assess_actions, threat_bombs
+from .core.planning import UNREACHABLE, DistanceCache, bomb_spots
+from .core.safety import (
+    DEFAULT_THREAT_RADIUS,
+    Board,
+    assess_actions,
+    threat_bombs,
+)
 from .core.world_model import (
     ACTIONS,
     BOMB_POWER,
@@ -217,6 +222,18 @@ def attack_category(obs: Observation, board: Board, timeline: Timeline) -> int:
 
 
 @dataclass(frozen=True)
+class CoinRace:
+    """How the visible coins divide between us and the opponents."""
+
+    owned: int = 0
+    contested: int = 0
+    own_distance: int | None = None
+    own_options: frozenset[int] = frozenset()
+    within_5: int = 0
+    within_10: int = 0
+
+
+@dataclass(frozen=True)
 class Extracted:
     """Everything one step derives from an observation."""
 
@@ -226,10 +243,10 @@ class Extracted:
     # Best safety tier over the legal actions; 0 means no known escape.
     best_tier: int
     # Walking distance to the nearest reachable visible coin, for the coin
-    # potential of plan §5.7; None if there is none.
+    # coin potential; None if there is none.
     coin_distance: int | None
     # Walking distance to the bombing spot ``crate_dir`` points to, for the
-    # spot potential (Q7); None without a spot or outside the encoding.
+    # spot potential; None without a spot or outside the encoding.
     crate_distance: int | None
     # Live crates a bomb dropped here would destroy, uncapped (``bomb_yield``
     # is this capped at 3); for the ``bomb_aid`` training aid.
@@ -237,6 +254,52 @@ class Extracted:
     # For each of ``DIRECTION_FIELDS``, every equally good value the RNG could
     # have picked; empty when the field is ``NONE`` or not in the encoding.
     options: dict[FieldName, frozenset[int]]
+    # --- graded detail, for a learner with a richer input than the table -----
+    # These are read by nothing in this agent: ``Features`` is unchanged and so
+    # is its ``schema_id``. They exist because the DQN vendors this file
+    # byte-identically and its dense encoder needs the numbers behind the
+    # categories (dev/dqn.md D9).
+    #
+    # Safety tier per action in ``ACTIONS`` order, -1 where the action is not
+    # legal at all. The mask is the best tier; this is the whole ranking.
+    tiers: tuple[int, ...] = ()
+    # Cells still reachable alive at the escape horizon per action, the same
+    # order: how much room an action leaves, not just whether it survives.
+    refuges: tuple[int, ...] = ()
+    # Walking distance to the nearest opponent and to the nearest hunt cell
+    # (a cell in an opponent's blast within ``hunt_radius``); None if there is
+    # none.
+    opponent_distance: int | None = None
+    hunt_distance: int | None = None
+    # Every first step on a shortest walk towards the nearest opponent, at any
+    # distance. ``opp_dir`` only sees hunt cells within ``hunt_radius``, so once
+    # the coins and crates are gone and the opponents are further away than that,
+    # nothing in E3 points anywhere: the agent is blind for the rest of the
+    # round. This is the direction that stays available.
+    approach_options: frozenset[int] = frozenset()
+    # --- the coin race ------------------------------------------------------
+    # Who gets there first. For every visible reachable coin, compare our
+    # walking distance with the nearest opponent's: ``contested`` counts the
+    # ones an opponent reaches sooner, ``owned`` the ones we do. ``own_coin_*``
+    # describe the nearest coin we would win the race for, which is not
+    # generally the nearest coin. A duel is decided by coins, and an agent that
+    # cannot tell a coin it will lose from one it will win walks to both.
+    owned_coins: int = 0
+    contested_coins: int = 0
+    own_coin_distance: int | None = None
+    own_coin_options: frozenset[int] = frozenset()
+    # Coins within five and ten steps: how rich this corner of the board is.
+    coins_within_5: int = 0
+    coins_within_10: int = 0
+    # Offsets at which the agent's own cell is lethal; the first one is how
+    # long it may still stand still.
+    lethal_offsets: tuple[int, ...] = ()
+    # Counts the categorical fields drop: coins in sight, opponents alive,
+    # crates left on the board, and the step within the 400-step round.
+    coins_visible: int = 0
+    opponents_alive: int = 0
+    crates_left: int = 0
+    step: int = 0
 
 
 class Extractor:
@@ -247,11 +310,23 @@ class Extractor:
     """
 
     def __init__(
-        self, encoding: Encoding, mask: MaskVariant, rng: random.Random
+        self,
+        encoding: Encoding,
+        mask: MaskVariant,
+        rng: random.Random,
+        threat_radius: int = DEFAULT_THREAT_RADIUS,
     ) -> None:
         self.encoding = encoding
         self.mask: MaskVariant = mask
         self.rng = rng
+        # How far away an armed opponent still counts as a bomb about to be
+        # dropped. ``core``'s default is BOMB_POWER + 1, which is exactly the
+        # opponents who could catch us with a bomb dropped *from where they
+        # stand this step*. It does not cover an opponent two steps away from
+        # a cell that would catch us, and post-mortems show that is how this
+        # agent dies: five of its six deaths against ``rule_based_agent`` were
+        # an opponent's bomb alone. A wider radius models those conservatively.
+        self.threat_radius = threat_radius
         # ``bfs_agent``'s valuation defaults. Deliberately not
         # ``Params.from_env()``: a ``bfs_agent`` sweep must not change features.
         self.params = Params()
@@ -268,7 +343,9 @@ class Extractor:
         geometry = self._geometry_for(obs)
         board = Board(obs, geometry)
         timeline = danger_timeline(geometry, board.crates, obs.bombs, obs.explosion_map)
-        assessments = assess_actions(obs, board, timeline, threat_bombs(obs))
+        assessments = assess_actions(
+            obs, board, timeline, threat_bombs(obs, self.threat_radius)
+        )
         allowed = allowed_actions(assessments, self.mask)
         cache = self._distances
         cache.sync(board)
@@ -292,8 +369,9 @@ class Extractor:
             bomb_yield = min(bomb_hits, MAX_YIELD)
         if "danger" in wanted:
             danger = int(bool(timeline.lethal_offsets(obs.me.pos)))
+        hunt_distance: int | None = None
         if "opp_dir" in wanted:
-            opp_options = self._opponent(obs, board, cache, mine)
+            opp_options, hunt_distance = self._opponent(obs, board, cache, mine)
         if "attack" in wanted:
             attack = attack_category(obs, board, timeline)
 
@@ -306,6 +384,9 @@ class Extractor:
             opp_dir=self._pick(opp_options),
             attack=attack,
         )
+        graded = {a.action: a for a in assessments}
+        approach_options, approach_distance = self._approach(obs, board, cache, mine)
+        race = self._coin_race(obs, board, cache, mine)
         return Extracted(
             features=features,
             allowed=tuple(allowed),
@@ -318,7 +399,100 @@ class Extractor:
                 "crate_dir": crate_options,
                 "opp_dir": opp_options,
             },
+            tiers=tuple(
+                graded[action].tier if action in graded else -1 for action in ACTIONS
+            ),
+            refuges=tuple(
+                graded[action].contested.refuges if action in graded else 0
+                for action in ACTIONS
+            ),
+            opponent_distance=approach_distance,
+            approach_options=approach_options,
+            hunt_distance=hunt_distance,
+            lethal_offsets=tuple(timeline.lethal_offsets(obs.me.pos)),
+            owned_coins=race.owned,
+            contested_coins=race.contested,
+            own_coin_distance=race.own_distance,
+            own_coin_options=race.own_options,
+            coins_within_5=race.within_5,
+            coins_within_10=race.within_10,
+            coins_visible=len(obs.coins),
+            opponents_alive=len(obs.others),
+            crates_left=len(board.crates),
+            step=obs.step,
         )
+
+    def _coin_race(
+        self,
+        obs: Observation,
+        board: Board,
+        cache: DistanceCache,
+        mine: Mapping[Pos, int],
+    ) -> "CoinRace":
+        """Split the visible coins into the ones we would reach first and the
+        rest, and point at the nearest one we would win.
+
+        One distance field per opponent, which the cache reuses for the rest of
+        the step. Ties count as ours: moving first is worth something, and the
+        engine breaks simultaneous arrivals by the action order anyway.
+        """
+        reachable = {coin: mine[coin] for coin in obs.coins if coin in mine}
+        if not reachable:
+            return CoinRace()
+        fields = [cache.field(other.pos) for other in obs.others]
+        owned: dict[Pos, int] = {}
+        contested = 0
+        for coin, distance in reachable.items():
+            rival = min(
+                (field.get(coin, UNREACHABLE) for field in fields), default=None
+            )
+            if rival is not None and rival < distance:
+                contested += 1
+            else:
+                owned[coin] = distance
+        nearest = min(owned.values(), default=None)
+        targets = {c: d for c, d in owned.items() if d == nearest}
+        return CoinRace(
+            owned=len(owned),
+            contested=contested,
+            own_distance=nearest,
+            own_options=(
+                self._direction(board, cache, obs.me.pos, targets)
+                if targets
+                else _NO_OPTIONS
+            ),
+            within_5=sum(1 for d in reachable.values() if d <= 5),
+            within_10=sum(1 for d in reachable.values() if d <= 10),
+        )
+
+    def _approach(
+        self,
+        obs: Observation,
+        board: Board,
+        cache: DistanceCache,
+        mine: Mapping[Pos, int],
+    ) -> tuple[frozenset[int], int | None]:
+        """Where the nearest opponent is, and which way leads there.
+
+        An opponent's own cell is walkable in these fields (agents are not
+        obstacles), so it is used directly when reachable; otherwise the cells
+        beside it are. Unlike ``opp_dir`` this has no radius: it is what the
+        agent steers by when nothing else is left on the board.
+        """
+        cells: dict[Pos, int] = {}
+        for other in obs.others:
+            candidates = (
+                [other.pos]
+                if other.pos in mine
+                else [c for c in board.geometry.neighbors[other.pos] if c in mine]
+            )
+            for cell in candidates:
+                cells[cell] = mine[cell]
+        if not cells:
+            return _NO_OPTIONS, None
+        nearest = min(cells.values())
+        targets = {cell: d for cell, d in cells.items() if d == nearest}
+        return self._direction(board, cache, obs.me.pos, targets), nearest
 
     def _pick(self, options: frozenset[int]) -> int:
         """One of ``options``, chosen by the RNG; ``NONE`` if there are none."""
@@ -364,7 +538,7 @@ class Extractor:
         board: Board,
         cache: DistanceCache,
         mine: Mapping[Pos, int],
-    ) -> frozenset[int]:
+    ) -> tuple[frozenset[int], int | None]:
         cells: dict[Pos, int] = {}
         for other in obs.others:
             for cell in board.geometry.blast(other.pos):
@@ -372,10 +546,10 @@ class Extractor:
                 if cell != other.pos and d is not None and d <= self.params.hunt_radius:
                     cells[cell] = d
         if not cells:
-            return _NO_OPTIONS
+            return _NO_OPTIONS, None
         nearest = min(cells.values())
         targets = {cell: d for cell, d in cells.items() if d == nearest}
-        return self._direction(board, cache, obs.me.pos, targets)
+        return self._direction(board, cache, obs.me.pos, targets), nearest
 
     def _direction(
         self,

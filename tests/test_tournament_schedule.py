@@ -141,3 +141,22 @@ def test_custom_preset_without_control_emits_candidate_only() -> None:
     schedule = build_schedule("random_agent", preset, seeds(2))
 
     assert all(config.arm == CANDIDATE_ARM for config in schedule)
+
+
+def test_head_to_head_preset_pairs_the_two_learned_models() -> None:
+    """``tabular-control`` answers "is the network better than the table?" the
+    same way ``bfs-control`` asks it of the search agent: tournament
+    conditions, and the control arm puts the other learned model in the
+    candidate's seat on the same board."""
+    preset = PRESETS["tabular-control"]
+    assert preset.control == "tabular_q_agent"
+    assert preset.opponents == ("rule_based_agent",) * 3
+    schedule = build_schedule("dqn_agent", preset, seeds(3, 500))
+    candidate = [c for c in schedule if c.arm == CANDIDATE_ARM]
+    control = [c for c in schedule if c.arm == CONTROL_ARM]
+    assert len(candidate) == len(control) == 3 * preset.seats
+    for mine, theirs in zip(candidate, control, strict=True):
+        assert (mine.seed, mine.focus_seat) == (theirs.seed, theirs.focus_seat)
+        assert mine.lineup[mine.focus_seat] == "dqn_agent"
+        assert theirs.lineup[theirs.focus_seat] == "tabular_q_agent"
+        assert theirs.lineup.count("tabular_q_agent") == 1

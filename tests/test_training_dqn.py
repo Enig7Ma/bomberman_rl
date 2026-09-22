@@ -1,4 +1,4 @@
-"""D5: real worlds, full chunk saves, independent spawned runs and inference."""
+"""Real worlds, full chunk saves, independent spawned runs and inference."""
 
 import copy
 import importlib
@@ -23,6 +23,7 @@ from training.spec import SPECS, AgentSpec
 
 torch = pytest.importorskip("torch")
 
+from agent_code.dqn_agent.config import Config  # noqa: E402
 from agent_code.dqn_agent.encoder import ENCODERS  # noqa: E402
 from agent_code.dqn_agent.metrics import read_records  # noqa: E402
 from agent_code.dqn_agent.network import QNetwork  # noqa: E402
@@ -117,7 +118,7 @@ def test_three_rounds_save_all_artifacts(smoke: Path) -> None:
     assert len(read_records(smoke / "metrics.jsonl")) == 3
     assert len(read_chunk_records(smoke)) == 3
     assert snapshots(smoke)
-    net = QNetwork.load(smoke / "q_net.npz", ENCODERS["onehot_e3"])
+    net = QNetwork.load(smoke / "q_net.npz", ENCODERS[Config().encoder])
     for name, weights in net.arrays.items():
         np.testing.assert_array_equal(weights, state["learner"]["online"][name].numpy())
     assert list((smoke / "logs" / "chunk_000000" / "agents").rglob("*.log"))
@@ -308,7 +309,7 @@ def test_evaluation_and_frozen_load_snapshot_not_live_model(
         ):
             module.setup(agent)
         assert agent.q_function is not None
-        expected = QNetwork.load(snapshot, ENCODERS["onehot_e3"])
+        expected = QNetwork.load(snapshot, ENCODERS[Config().encoder])
         for key in expected.arrays:
             np.testing.assert_array_equal(
                 agent.q_function.arrays[key], expected.arrays[key]
@@ -386,7 +387,7 @@ def test_numpy_warm_start_is_new_training(smoke: Path, tmp_path: Path) -> None:
     assert (
         read_records(tmp_path / "metrics.jsonl")[0]["resume_mode"] == "numpy-warm-start"
     )
-    expected = QNetwork.load(source, ENCODERS["onehot_e3"])
+    expected = QNetwork.load(source, ENCODERS[Config().encoder])
     for name, weights in expected.arrays.items():
         np.testing.assert_array_equal(weights, state["learner"]["online"][name].numpy())
     assert source.read_bytes() == before

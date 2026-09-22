@@ -1,4 +1,4 @@
-"""D2: canonical E3 inputs and masked NumPy Q-network inference.
+"""Play callbacks: canonical E3 inputs and masked NumPy Q-network inference.
 
 Missing/broken default weights fall back to safe-random with an error log.
 Explicit model paths are strict; policy="random" remains the control.
@@ -44,7 +44,9 @@ def setup(self: AgentSelf) -> None:
     self.config = Config.from_env()
     self.rng = random.Random(self.config.seed)
     self.encoding = ENCODINGS[self.config.encoding]
-    self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
+    self.extractor = Extractor(
+        self.encoding, self.config.mask, self.rng, self.config.threat_radius
+    )
     self.encoder = ENCODERS[self.config.encoder]
     self.model_file, explicit = model_path()
     self.q_function = _load_network(self, explicit)
@@ -81,7 +83,9 @@ def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
     obs = Observation.from_game_state(game_state)
     if obs.round != self.round:
         self.round = obs.round
-        self.extractor = Extractor(self.encoding, self.config.mask, self.rng)
+        self.extractor = Extractor(
+            self.encoding, self.config.mask, self.rng, self.config.threat_radius
+        )
     extracted = self.extractor.extract(obs)
     if self.train and self.trainer is not None:
         index, symmetry = canonical(extracted.features, self.encoding)
@@ -89,7 +93,7 @@ def act(self: AgentSelf, game_state: Mapping[str, Any]) -> Action:
     if self.config.policy == "random" or self.q_function is None:
         return cast(Action, self.rng.choice(extracted.allowed))
     index, symmetry = canonical(extracted.features, self.encoding)
-    x = self.encoder.encode(self.encoding.decode(index), extracted)
+    x = self.encoder.encode(self.encoding.decode(index), extracted, symmetry)
     allowed = [ACTIONS.index(to_canonical(a, symmetry)) for a in extracted.allowed]
     action = masked_greedy(self.q_function.values(x), allowed, self.rng)
     return cast(Action, from_canonical(ACTIONS[action], symmetry))

@@ -1,4 +1,4 @@
-"""D4 weight-only loading, replay consistency, atomic writes and probe checks."""
+"""Weight-only loading, replay consistency, atomic writes and probe checks."""
 
 import json
 import pickle
@@ -8,12 +8,16 @@ from typing import Any
 import numpy as np
 import pytest
 
-from agent_code.dqn_agent.encoder import OneHotE3
+from agent_code.dqn_agent.config import Config
+from agent_code.dqn_agent.encoder import ENCODERS
 from agent_code.dqn_agent.network import QNetwork
 from agent_code.dqn_agent.probe import Probe, check_q
 from tests.test_dqn_agent_train import configure, script, trainer
 from tournament.engine import quiet_logging, reset_framework_logging
 from training.world import create_training_world, play_round
+
+# The agent's own default input, so these stay true when that default changes.
+DEFAULT = ENCODERS[Config().encoder]
 
 torch = pytest.importorskip("torch")
 
@@ -82,7 +86,7 @@ def test_numpy_warm_start_has_fresh_optimizer_and_counters(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     configure(monkeypatch, tmp_path)
-    net = QNetwork.random(OneHotE3(), 99)
+    net = QNetwork.random(DEFAULT, 99)
     net.meta.update({"updates": 100, "transitions": 5000, "rounds_trained": 4})
     net.save(tmp_path / "q_net.npz")
     with quiet_logging():
@@ -156,16 +160,16 @@ def test_atomic_failed_save_preserves_checkpoint(
 
 
 def test_probe_histogram_churn_guard_and_load(tmp_path: Path) -> None:
-    net = QNetwork.random(OneHotE3(), 0)
+    net = QNetwork.random(DEFAULT, 0)
     for array in net.arrays.values():
         array.fill(0)
     net.arrays["b2"][:] = [1, 2, 40, 0, 0, 0]
-    x = np.zeros((3, 32), dtype=np.float32)
+    x = np.zeros((3, DEFAULT.dim), dtype=np.float32)
     masks = np.zeros((3, 6), dtype=bool)
     masks[:, :2] = True
     path = tmp_path / "probe.npz"
-    np.savez(path, x=x, masks=masks, schema_id=np.array(OneHotE3().schema_id))
-    probe = Probe.load(path, OneHotE3().schema_id, 32)
+    np.savez(path, x=x, masks=masks, schema_id=np.array(DEFAULT.schema_id))
+    probe = Probe.load(path, DEFAULT.schema_id, DEFAULT.dim)
     report = probe.measure(net)
     assert report["mean_max_q"] == report["max_q"] == 2
     assert report["greedy_histogram"] == [0, 3, 0, 0, 0, 0]
@@ -178,7 +182,7 @@ def test_probe_histogram_churn_guard_and_load(tmp_path: Path) -> None:
             check_q(np.array([value], dtype=np.float32))
     check_q(np.array([50, -50], dtype=np.float32))
     with pytest.raises(ValueError):
-        Probe.load(path, "other", 32)
+        Probe.load(path, "other", DEFAULT.dim)
 
 
 def test_training_probe_interval_and_guard(
@@ -187,9 +191,9 @@ def test_training_probe_interval_and_guard(
     path = tmp_path / "probe.npz"
     np.savez(
         path,
-        x=np.zeros((2, 32), dtype=np.float32),
+        x=np.zeros((2, DEFAULT.dim), dtype=np.float32),
         masks=np.ones((2, 6), dtype=bool),
-        schema_id=np.array(OneHotE3().schema_id),
+        schema_id=np.array(DEFAULT.schema_id),
     )
     configure(
         monkeypatch,

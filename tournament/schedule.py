@@ -88,6 +88,18 @@ PRESETS: dict[str, Preset] = {
         control="rule_based_agent",
         description="Stronger held-out style than the incumbent: the search agent.",
     ),
+    "tabular-control": Preset(
+        opponents=("rule_based_agent",) * 3,
+        scenario="classic",
+        control="tabular_q_agent",
+        description="Standard conditions, paired against the other learned model.",
+    ),
+    "duel-bfs": Preset(
+        opponents=("bfs_agent",),
+        scenario="classic",
+        control="rule_based_agent",
+        description="One on one against the search agent: who wins the round.",
+    ),
     "coin-heaven-solo": Preset(
         opponents=(),
         scenario="coin-heaven",
